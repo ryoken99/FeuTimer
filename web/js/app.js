@@ -12,6 +12,10 @@
 
   const STORAGE_KEY = 'feu.tv.simulator.v3';
 
+  const roundsPreview = new URLSearchParams(location.search).get('rondas') === 'tv';
+  const roundSections = ['presets', 'builder', 'templates'];
+  let roundSection = 'presets';
+
   function loadPersisted() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -353,6 +357,7 @@
     stopTicker();
     Audio.stopAll();
     state.screen = 'ROUNDS';
+    roundSection = 'presets';
     state.focusZone = 'CONTENT';
     state.contentFocusIndex = 0;
     renderAll();
@@ -622,6 +627,10 @@
       closeModal();
       return;
     }
+    if (roundsPreview && state.screen === 'ROUNDS' && !els.viewport.querySelector('[data-round-section].is-dpad-focused')) {
+      applyDomFocus(els.viewport.querySelector(`[data-round-section="${roundSection}"]`));
+      return;
+    }
     if (state.screen !== 'CLOCK') {
       returnToClock();
     }
@@ -821,6 +830,13 @@
 
   function renderRoundsScreen() {
     const L = state.locale;
+    if (roundsPreview) {
+      const wrap = els.presetsRow.parentElement;
+      wrap.dataset.section = roundSection;
+      setHtml(document.getElementById('round-sections'), roundSections.map((section) =>
+        `<button type="button" class="tv-focusable round-section" data-round-section="${section}" aria-pressed="${section === roundSection}">${I18n.t(L, 'round_section_' + section)}</button>`
+      ).join(''));
+    }
     setHtml(els.presetsRow, state.presetSlots
       .map((p, idx) => {
         const focused = false;
@@ -1489,6 +1505,15 @@
       if (clickedFocusable) applyDomFocus(clickedFocusable);
       if (ev.target.closest('.lan-banner')) return;
 
+      const sectionButton = ev.target.closest('[data-round-section]');
+      if (sectionButton) {
+        roundSection = sectionButton.dataset.roundSection;
+        renderRoundsScreen();
+        const first = els.viewport.querySelector('.rounds-wrap [data-' + ({ presets: 'preset-idx', builder: 'builder-cmd', templates: 'tpl-idx' }[roundSection]) + ']');
+        applyDomFocus(first);
+        return;
+      }
+
       const quickOpt = ev.target.closest('[data-quick-opt]');
       if (quickOpt) {
         const k = quickOpt.getAttribute('data-quick-opt');
@@ -1524,8 +1549,10 @@
         const tpl = Presets.templateLibrary[Number(tplBtn.getAttribute('data-tpl-idx'))];
         if (tpl) {
           state.customBuilder = CustomBuilder.create(tpl);
+          if (roundsPreview) roundSection = 'builder';
           persistSettings();
           renderRoundsScreen();
+          if (roundsPreview) applyDomFocus(els.builderRow.querySelector('[data-builder-idx="10"]'));
         }
         return;
       }
@@ -1701,6 +1728,10 @@
     setupViewportScaleLock();
     if (new URLSearchParams(window.location.search).get('tv') === '1') {
       document.body.classList.add('is-tv-only');
+    }
+    if (roundsPreview) {
+      document.body.classList.add('rounds-preview', 'dpad-mode');
+      state.screen = 'ROUNDS';
     }
     wireEvents();
     renderAll();

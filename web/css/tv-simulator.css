@@ -1393,3 +1393,49 @@ body.is-tv-only .floating-tv-toggle {
   border-color: var(--crown-gold);
   color: #ffe29a;
 }
+
+/* Optional TV remote layout for Rounds. */
+.round-sections { display: none; }
+.rounds-preview .rounds-wrap { gap: 18px; }
+.rounds-preview .round-sections {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline-strong);
+}
+.round-section {
+  padding: 7px 16px;
+  border-radius: 8px;
+  background: var(--card-hover);
+  font-size: 16px;
+  font-weight: 800;
+}
+.round-section[aria-pressed="true"] {
+  border-color: var(--crown-gold);
+  color: var(--crown-gold);
+}
+.rounds-wrap[data-section]:not([data-section="presets"]) .presets-row,
+.rounds-wrap[data-section]:not([data-section="builder"]) .builder-row,
+.rounds-wrap[data-section]:not([data-section="templates"]) .templates-strip { display: none; }
+.rounds-preview .templates-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  overflow: visible;
+  mask-image: none;
+}
+.rounds-preview .tpl-pill { height: 52px; border-radius: 10px; font-size: 16px; }
+.rounds-preview .builder-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rounds-preview .builder-col { height: 126px; }
+.rounds-preview .builder-action-col {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 14px;
+  height: 50px;
+}
+.rounds-preview .total-frame-box { margin-right: auto; width: auto; padding: 0 16px; }
+.rounds-preview .save-slots-row { gap: 8px; }
+.rounds-preview .mini-tag { min-width: 34px; height: 31px; }
+.rounds-preview .preset-card { height: 155px; }

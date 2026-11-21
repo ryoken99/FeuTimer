@@ -878,7 +878,7 @@
               <div class="metric-cell">
                 <span class="metric-old" data-old="work"></span>
                 <span class="metric-top"><span class="metric-val" data-m="work">${w.value}</span><em class="metric-suffix">${I18n.t(L, w.unitKey)}</em></span>
-                <span class="metric-role metric-role--work">${I18n.t(L, 'role_work')}</span>
+                <span class="metric-role metric-role--work">${I18n.t(L, 'phase_single_time')}</span>
               </div>
               <span class="preset-card__div"></span>
               <div class="metric-cell">

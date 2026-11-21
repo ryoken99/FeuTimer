@@ -717,7 +717,7 @@ private fun PresetRoundCard(
                     number = workVal.toString(),
                     oldText = if (showDiff && oldM.work != newM.work) oldM.work else null,
                     unit = unitLabel(workKind),
-                    role = stringResource(id = R.string.role_work),
+                    role = stringResource(id = R.string.phase_single_time),
                     roleColor = Color(0xFFFF7278)
                 )
                 VerticalDivider(

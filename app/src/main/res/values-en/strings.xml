@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name">FEU BJJ Timer</string>
+    <string name="brand_academy_subtitle">FEU BJJ PORTUGAL · PINHAL NOVO</string>
+    <string name="brand_tatami_mode">TATAMI TIMER</string>
+    <string name="version_label">v%1$s</string>
+
+    <string name="nav_quick_timers">Quick</string>
+    <string name="nav_rounds">Rounds</string>
+    <string name="nav_scoreboard">Scoreboard</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_back_clock">Clock</string>
+    <string name="nav_pause">Pause</string>
+    <string name="nav_resume">Resume</string>
+    <string name="nav_voice_short">Voice</string>
+
+    <string name="quick_timers_title">Choose Duration</string>
+    <string name="quick_stopwatch_btn">Count-Up Stopwatch (00:00 ↑)</string>
+
+    <string name="preset_adult">Adult Sparring</string>
+    <string name="preset_comp">Competition</string>
+    <string name="preset_specific">Specific Training</string>
+    <string name="preset_kids_drills">Warm-up / Kids</string>
+
+    <string name="tpl_open_mat">Open Mat ∞ (5m/1m)</string>
+    <string name="tpl_endurance">Endurance (10×5m/90s)</string>
+    <string name="tpl_black_belt">Black Belt (4×10m/2m)</string>
+    <string name="tpl_high_pace">High Pace (10×3m/40s)</string>
+    <string name="tpl_shark_tank">Shark Tank (4×1m/1m)</string>
+    <string name="tpl_tabata">Tabata (8×20s/10s)</string>
+
+    <string name="unit_rep">rep.</string>
+    <string name="unit_hour">hour</string>
+    <string name="unit_min">min.</string>
+    <string name="unit_sec">sec.</string>
+    <string name="unit_endless">open</string>
+    <string name="role_rounds">Rounds</string>
+    <string name="role_work">Fight</string>
+    <string name="role_rest">Rest</string>
+    <string name="total_prefix">Total: %1$s</string>
+
+    <string name="custom_col_repeats">Rounds</string>
+    <string name="custom_col_work">Fight Time</string>
+    <string name="custom_col_rest">Rest Time</string>
+    <string name="custom_start_action">Start</string>
+    <string name="custom_save_slot_prefix">Save:</string>
+
+    <string name="phase_prep">GET READY · %1$d</string>
+    <string name="phase_fight_go">FIGHT!</string>
+    <string name="phase_single_time">TIME</string>
+    <string name="phase_stopwatch">STOPWATCH</string>
+    <string name="phase_round_progress">ROUND %1$d / %2$d</string>
+    <string name="phase_round_endless">ROUND %1$d · OPEN MAT</string>
+    <string name="phase_rest">REST</string>
+    <string name="phase_rest_next">REST · NEXT %1$d/%2$d</string>
+    <string name="phase_rest_next_endless">REST · NEXT %1$d</string>
+    <string name="phase_paused">PAUSED</string>
+    <string name="phase_finished">SESSION COMPLETE</string>
+
+    <string name="fighter_a_name">ATHLETE 1 · WHITE</string>
+    <string name="fighter_b_name">ATHLETE 2 · RED</string>
+    <string name="score_advantages">ADV</string>
+    <string name="score_penalties">PEN</string>
+    <string name="score_reset">Reset</string>
+    <string name="lan_remote_label">Mobile Control (Wi-Fi):</string>
+    <string name="lan_remote_offline">Connect to same Wi-Fi</string>
+    <string name="lan_connected_badge" tools:ignore="PluralsCandidate">● %1$d live</string>
+    <string name="lan_saved_count" tools:ignore="PluralsCandidate">📋 %1$d saved</string>
+
+    <string name="settings_title">Tatami Settings</string>
+    <string name="set_prep_label">Initial Countdown</string>
+    <string name="set_prep_off">Instant (0s)</string>
+    <string name="set_warn_label">Mid-Round Alerts</string>
+    <string name="warn_halfway_short">Halfway</string>
+    <string name="set_pack_label">End &amp; Voice</string>
+    <string name="pack_horn">Horn</string>
+    <string name="pack_bell">Bell</string>
+    <string name="pack_whistle">Whistle</string>
+    <string name="set_test_sound">Test</string>
+    <string name="set_lang_label">Clock &amp; Language</string>
+    <string name="set_reset_presets">Reset Presets</string>
+    <string name="feu_toggle_on">ON</string>
+    <string name="feu_toggle_off">OFF</string>
+    <string name="quick_repeat_label">Repeat</string>
+    <string name="quick_rest_label">Rest</string>
+    <string name="quick_rest_none">None</string>
+    <string name="save_dialog_title">Save to preset %1$d?</string>
+    <string name="save_dialog_hint">Replaces the current preset with the new values.</string>
+    <string name="save_ok">Save</string>
+    <string name="save_cancel">Cancel</string>
+    <string name="save_done" tools:ignore="PluralsCandidate">✓ Preset %1$d saved</string>
+</resources>

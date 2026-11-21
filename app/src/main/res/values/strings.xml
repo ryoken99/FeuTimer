@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="pt-rPT">
+    <string name="app_name">FEU BJJ Cronómetro</string>
+    <string name="brand_academy_subtitle">FEU BJJ PORTUGAL · PINHAL NOVO</string>
+    <string name="brand_tatami_mode">CRONÓMETRO DE TATAMI</string>
+    <string name="version_label">v%1$s</string>
+
+    <!-- Primary Navigation (pt-PT, "tu" form, compact zero-cutoff labels) -->
+    <string name="nav_quick_timers">Tempos</string>
+    <string name="nav_rounds">Rondas</string>
+    <string name="nav_scoreboard">Placar</string>
+    <string name="nav_settings">Definições</string>
+    <string name="nav_back_clock">Relógio</string>
+    <string name="nav_pause">Pausar</string>
+    <string name="nav_resume">Retomar</string>
+    <string name="nav_voice_short">Voz</string>
+
+    <!-- Quick Timers & Stopwatch Screen -->
+    <string name="quick_timers_title">Escolhe o Tempo</string>
+    <string name="quick_stopwatch_btn">Cronómetro Progressivo (00:00 ↑)</string>
+
+    <!-- Rounds, Templates & Custom Builder Screen -->
+    <string name="preset_adult">Rolas Adultos</string>
+    <string name="preset_comp">Competição</string>
+    <string name="preset_specific">Treino Específico</string>
+    <string name="preset_kids_drills">Aquecimento / Kids</string>
+
+    <string name="tpl_open_mat">Rola Livre ∞ (5m/1m)</string>
+    <string name="tpl_endurance">Resistência (10×5m/90s)</string>
+    <string name="tpl_black_belt">Faixa Preta (4×10m/2m)</string>
+    <string name="tpl_high_pace">Ritmo Alto (10×3m/40s)</string>
+    <string name="tpl_shark_tank">Shark Tank (4×1m/1m)</string>
+    <string name="tpl_tabata">Tabata (8×20s/10s)</string>
+
+    <string name="unit_rep">rep.</string>
+    <string name="unit_hour">hora</string>
+    <string name="unit_min">min.</string>
+    <string name="unit_sec">seg.</string>
+    <string name="unit_endless">livre</string>
+    <string name="role_rounds">Rondas</string>
+    <string name="role_work">Luta</string>
+    <string name="role_rest">Descanso</string>
+    <string name="total_prefix">Total: %1$s</string>
+
+    <string name="custom_col_repeats">Rondas</string>
+    <string name="custom_col_work">Tempo de Luta</string>
+    <string name="custom_col_rest">Descanso</string>
+    <string name="custom_start_action">Iniciar</string>
+    <string name="custom_save_slot_prefix">Guardar:</string>
+
+    <!-- Active Timer Phases -->
+    <string name="phase_prep">PREPARA-TE · %1$d</string>
+    <string name="phase_fight_go">COMBATE!</string>
+    <string name="phase_single_time">TEMPO</string>
+    <string name="phase_stopwatch">CRONÓMETRO PROGRESSIVO</string>
+    <string name="phase_round_progress">RONDA %1$d / %2$d</string>
+    <string name="phase_round_endless">RONDA %1$d · LIVRE</string>
+    <string name="phase_rest">DESCANSO</string>
+    <string name="phase_rest_next">DESCANSO · PRÓXIMA %1$d/%2$d</string>
+    <string name="phase_rest_next_endless">DESCANSO · PRÓXIMA %1$d</string>
+    <string name="phase_paused">EM PAUSA</string>
+    <string name="phase_finished">FIM DO TREINO</string>
+
+    <!-- IBJJF Scoreboard & Wi-Fi Mobile Remote -->
+    <string name="fighter_a_name">ATLETA 1 · BRANCO</string>
+    <string name="fighter_b_name">ATLETA 2 · VERMELHO</string>
+    <string name="score_advantages">VANT</string>
+    <string name="score_penalties">PUN</string>
+    <string name="score_reset">Repor</string>
+    <string name="lan_remote_label">Controlo Telemóvel (Wi-Fi):</string>
+    <string name="lan_remote_offline">Liga à mesma rede Wi-Fi</string>
+    <string name="lan_connected_badge">● %1$d ligado</string>
+    <string name="lan_saved_count">📋 %1$d lutas</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Definições do Tatami</string>
+    <string name="set_prep_label">Contagem Inicial</string>
+    <string name="set_prep_off">Direto (0s)</string>
+    <string name="set_warn_label">Avisos na Ronda</string>
+    <string name="warn_halfway_short">Metade</string>
+    <string name="set_pack_label">Final &amp; Voz</string>
+    <string name="pack_horn">Buzina</string>
+    <string name="pack_bell">Gongo</string>
+    <string name="pack_whistle">Apito</string>
+    <string name="set_test_sound">Testar</string>
+    <string name="set_lang_label">Hora &amp; Idioma</string>
+    <string name="set_reset_presets">Repor Predefinições</string>
+    <string name="feu_toggle_on">ON</string>
+    <string name="feu_toggle_off">OFF</string>
+    <string name="quick_repeat_label">Repetir</string>
+    <string name="quick_rest_label">Descanso</string>
+    <string name="quick_rest_none">Sem</string>
+    <string name="save_dialog_title">Guardar na predefinição %1$d?</string>
+    <string name="save_dialog_hint">Substitui a predefinição atual pelos valores novos.</string>
+    <string name="save_ok">Guardar</string>
+    <string name="save_cancel">Cancelar</string>
+    <string name="save_done" tools:ignore="PluralsCandidate">✓ Predefinição %1$d guardada</string>
+</resources>

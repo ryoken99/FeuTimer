@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8" />
+<title>FEU BJJ Cronómetro · Showcase</title>
+<!--
+  Dev-only video stage (never shipped in the APK). Renders a 1920x1080 scene: live TV simulator + live phone referee
+  console side by side, captions, tap ripples and a belt progress bar. `tools/video/record.cjs` drives window.runShow().
+-->
+<style>
+  :root {
+    --red: #e8141b;
+    --red-deep: #8d0b10;
+    --gold: #d9a93c;
+    --ivory: #f4efe6;
+    --ink: #050506;
+    --serif: 'Bodoni 72', Didot, 'Playfair Display', Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Inter, sans-serif;
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--ink); font-family: var(--sans); color: var(--ivory); }
+
+  #stage { position: absolute; inset: 0; overflow: hidden;
+    background:
+      radial-gradient(1100px 700px at 18% 12%, rgba(232, 20, 27, 0.22), transparent 70%),
+      radial-gradient(900px 600px at 92% 95%, rgba(217, 169, 60, 0.12), transparent 70%),
+      linear-gradient(180deg, #0a0a0c, #030304); }
+  #grain { position: absolute; inset: -200px; opacity: 0.06; pointer-events: none;
+    background-image: repeating-radial-gradient(circle at 17% 32%, #fff 0 0.6px, transparent 0.7px 3px);
+    animation: drift 8s linear infinite; }
+  @keyframes drift { to { transform: translate(120px, 80px); } }
+  #sweep { position: absolute; top: -20%; left: -40%; width: 40%; height: 140%; transform: rotate(14deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent); animation: sweep 9s ease-in-out infinite; }
+  @keyframes sweep { 0% { left: -40%; } 60%, 100% { left: 120%; } }
+
+  /* ---------- Chapter + caption ---------- */
+  #chapter { position: absolute; left: 70px; top: 44px; display: flex; align-items: center; gap: 16px; font-weight: 800; letter-spacing: 0.22em; font-size: 20px; color: var(--gold);
+    opacity: 0; transform: translateY(-10px); transition: opacity 0.5s var(--ease), transform 0.5s var(--ease); }
+  #chapter.on { opacity: 1; transform: none; }
+  #chapter i { display: block; width: 46px; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--red) 70%, #fff 70% 76%, var(--red) 76%); }
+  #brandmark { position: absolute; right: 70px; top: 34px; display: flex; align-items: center; gap: 14px; opacity: 0.95; }
+  #brandmark img { height: 62px; }
+  #brandmark b { font-family: var(--serif); font-size: 34px; letter-spacing: 0.03em; }
+
+  #caption { position: absolute; left: 70px; bottom: 74px; max-width: 1180px; opacity: 0; transform: translateY(18px); transition: opacity 0.5s var(--ease), transform 0.55s var(--ease); }
+  #caption.on { opacity: 1; transform: none; }
+  #cap-title { font-family: var(--serif); font-size: 58px; font-weight: 700; line-height: 1.06; letter-spacing: 0.01em; text-shadow: 0 6px 30px rgba(0, 0, 0, 0.8); }
+  #cap-title em { font-style: normal; color: var(--red); }
+  #cap-sub { margin-top: 12px; font-size: 27px; font-weight: 600; color: rgba(244, 239, 230, 0.78); letter-spacing: 0.01em; }
+  body.mode-duo #caption { left: 70px; max-width: 1180px; }
+  body.mode-solo #caption { left: 50%; transform: translate(-50%, 18px); text-align: center; max-width: 1500px; }
+  body.mode-solo #caption.on { transform: translate(-50%, 0); }
+
+  /* ---------- TV ---------- */
+  #tvwrap { position: absolute; left: 210px; top: 92px; width: 1500px; height: 844px; transform-origin: 0 0; transition: transform 1s var(--ease), left 1s var(--ease), top 1s var(--ease), opacity 0.6s; }
+  #tvbezel { position: absolute; inset: -14px; border-radius: 26px; background: #0d0d10; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12), 0 60px 140px -30px rgba(0, 0, 0, 0.95), 0 0 120px -20px rgba(232, 20, 27, 0.35); }
+  #tv { position: absolute; inset: 0; width: 1500px; height: 844px; border: 0; border-radius: 12px; background: #000; }
+  body.mode-solo #tvwrap { left: 285px; top: 96px; transform: scale(0.9); }
+  body.mode-duo #tvwrap { left: 70px; top: 130px; transform: scale(0.78); }
+  body.mode-hidden #tvwrap { opacity: 0; }
+
+  /* ---------- Phone ---------- */
+  #phonewrap { position: absolute; left: 1420px; top: 92px; width: 410px; height: 902px; transform: translateX(560px) rotate(4deg); opacity: 0; transition: transform 1.1s var(--ease), opacity 0.8s; }
+  body.mode-duo #phonewrap { transform: none; opacity: 1; }
+  #phonebezel { position: absolute; inset: 0; border-radius: 62px; background: linear-gradient(160deg, #2a2a2e, #0c0c0e); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.16), 0 50px 120px -20px rgba(0, 0, 0, 0.95), 0 0 100px -30px rgba(217, 169, 60, 0.4); }
+  #phone { position: absolute; left: 10px; top: 58px; width: 390px; height: 834px; border: 0; border-radius: 0 0 52px 52px; background: #050506; }
+  #island { position: absolute; left: 50%; top: 22px; width: 118px; height: 32px; border-radius: 20px; background: #000; transform: translateX(-50%); z-index: 3; box-shadow: 0 0 0 1px rgba(255,255,255,0.06); }
+  #phonelabel { position: absolute; left: 0; right: 0; bottom: -52px; text-align: center; font-size: 19px; font-weight: 800; letter-spacing: 0.2em; color: var(--gold); }
+
+  /* ---------- FX ---------- */
+  #fx { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+  .tap { position: absolute; width: 84px; height: 84px; margin: -42px 0 0 -42px; border-radius: 50%; border: 5px solid rgba(255, 255, 255, 0.95); background: radial-gradient(circle, rgba(232, 20, 27, 0.55), rgba(232, 20, 27, 0) 70%); animation: tap 0.7s var(--ease) forwards; }
+  @keyframes tap { 0% { transform: scale(0.35); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+  #spot { position: absolute; border-radius: 22px; border: 4px solid var(--gold); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55), 0 0 60px rgba(217, 169, 60, 0.7); opacity: 0; transition: opacity 0.5s, left 0.5s var(--ease), top 0.5s var(--ease), width 0.5s var(--ease), height 0.5s var(--ease); z-index: 15; pointer-events: none; }
+  #spot.on { opacity: 1; }
+
+  /* ---------- Progress belt ---------- */
+  #belt { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; background: #101012; }
+  #belt .body { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #14100f, #2a2321); }
+  #belt .bar { position: absolute; top: 0; bottom: 0; width: 120px; background: var(--red); display: flex; align-items: center; justify-content: space-evenly; transition: left 0.3s linear; }
+  #belt .bar i { width: 10px; height: 8px; background: #fff; border-radius: 2px; }
+  #belt .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #1a1717, #2b2625); transition: width 0.3s linear; }
+
+  /* ---------- Title cards ---------- */
+  .card { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; pointer-events: none; transition: opacity 0.9s var(--ease);
+    background: radial-gradient(900px 600px at 50% 40%, rgba(232, 20, 27, 0.28), transparent 70%), #040405; }
+  .card.on { opacity: 1; }
+  .card img { height: 250px; transform: scale(0.82); opacity: 0; transition: transform 1.6s var(--ease), opacity 1s; }
+  .card.on img { transform: none; opacity: 1; }
+  .card h1 { font-family: var(--serif); font-size: 150px; font-weight: 700; letter-spacing: 0.02em; margin: 22px 0 0; line-height: 1; }
+  .card h2 { margin: 18px 0 0; font-size: 34px; font-weight: 850; letter-spacing: 0.34em; color: var(--red); }
+  .card p { margin: 26px 0 0; font-size: 31px; font-weight: 700; letter-spacing: 0.1em; color: var(--gold); }
+  .card .rule { width: 520px; height: 12px; border-radius: 6px; margin-top: 34px; display: grid; grid-template-columns: 68fr 24fr 8fr; overflow: hidden; border: 1px solid rgba(255,255,255,0.3); }
+  .card .rule span:nth-child(1) { background: #1a1818; } .card .rule span:nth-child(2) { background: var(--red); } .card .rule span:nth-child(3) { background: #1a1818; }
+  .card .chips { display: flex; gap: 16px; margin-top: 34px; }
+  .card .chip { padding: 12px 26px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.25); font-size: 24px; font-weight: 800; letter-spacing: 0.08em; background: rgba(255,255,255,0.05); }
+  .card .chip.red { background: var(--red); border-color: var(--red); }
+</style>
+</head>
+<body class="mode-hidden">
+<div id="stage">
+  <div id="grain"></div><div id="sweep"></div>
+
+  <div id="chapter"><i></i><span id="chap-text"></span></div>
+  <div id="brandmark"><img src="../assets/logo-on-black.png" alt="" /><b>FEU BJJ</b></div>
+
+  <div id="tvwrap"><div id="tvbezel"></div><iframe id="tv" title="TV"></iframe></div>
+
+  <div id="phonewrap">
+    <div id="phonebezel"></div><div id="island"></div>
+    <iframe id="phone" title="Telemóvel"></iframe>
+    <div id="phonelabel">TELEMÓVEL DO INSTRUTOR</div>
+  </div>
+
+  <div id="caption"><div id="cap-title"></div><div id="cap-sub"></div></div>
+  <div id="spot"></div>
+  <div id="fx"></div>
+
+  <div id="belt"><div class="fill" id="belt-fill"></div><div class="bar" id="belt-bar" style="left:0"><i></i><i></i><i></i></div></div>
+
+  <div class="card" id="card-intro">
+    <img src="../assets/logo-on-black.png" alt="" />
+    <h1>FEU BJJ</h1>
+    <h2>CRONÓMETRO DE TATAMI</h2>
+    <div class="rule"><span></span><span></span><span></span></div>
+    <p>NOVIDADES · VERSÃO 1.3.4</p>
+  </div>
+  <div class="card" id="card-outro">
+    <img src="../assets/logo-on-black.png" alt="" />
+    <h1>FEU BJJ</h1>
+    <h2>FEU BJJ PORTUGAL · PINHAL NOVO</h2>
+    <div class="rule"><span></span><span></span><span></span></div>
+    <div class="chips"><span class="chip red">ANDROID TV</span><span class="chip">PLACAR NO TELEMÓVEL</span><span class="chip">VOZ PT-PT</span><span class="chip">v1.3.4</span></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const nowMs = () => performance.timeOrigin + performance.now();
+  const TOTAL_MS = 110000; // progress-bar estimate only
+  const show = { sfx: [], audio: [], bufs: new Map(), startedAt: 0 };
+  window.__show = show;
+  let tw = null, pw = null;
+
+  const sfx = (type, extra) => show.sfx.push({ t: nowMs(), type, ...(extra || {}) });
+
+  // ---------- belt progress ----------
+  function tickBelt() {
+    if (!show.startedAt) return requestAnimationFrame(tickBelt);
+    const p = Math.min(1, (nowMs() - show.startedAt) / TOTAL_MS);
+    const w = 1920 * p;
+    $('#belt-fill').style.width = w + 'px';
+    $('#belt-bar').style.left = Math.max(0, w - 120) + 'px';
+    requestAnimationFrame(tickBelt);
+  }
+  tickBelt();
+
+  // ---------- captions / chapters ----------
+  async function caption(title, sub, chapter) {
+    const cap = $('#caption');
+    cap.classList.remove('on');
+    await sleep(260);
+    $('#cap-title').innerHTML = title;
+    $('#cap-sub').textContent = sub || '';
+    cap.classList.add('on');
+    sfx('whoosh');
+    if (chapter !== undefined) {
+      const ch = $('#chapter');
+      ch.classList.remove('on');
+      await sleep(120);
+      $('#chap-text').textContent = chapter;
+      if (chapter) ch.classList.add('on');
+    }
+  }
+  function hideCaption() { $('#caption').classList.remove('on'); }
+
+  // ---------- geometry + tap ripples ----------
+  function centerOf(frameEl, el) {
+    const fr = frameEl.getBoundingClientRect();
+    const scale = fr.width / frameEl.offsetWidth;
+    const r = el.getBoundingClientRect();
+    return { x: fr.left + (r.left + r.width / 2) * scale, y: fr.top + (r.top + r.height / 2) * scale, w: r.width * scale, h: r.height * scale, left: fr.left + r.left * scale, top: fr.top + r.top * scale };
+  }
+  function ripple(frameEl, el) {
+    const c = centerOf(frameEl, el);
+    const d = document.createElement('div');
+    d.className = 'tap';
+    d.style.left = c.x + 'px';
+    d.style.top = c.y + 'px';
+    $('#fx').appendChild(d);
+    setTimeout(() => d.remove(), 800);
+    sfx('tap');
+  }
+  async function spotlight(frameEl, el, pad = 18, ms = 2600) {
+    const c = centerOf(frameEl, el);
+    const s = $('#spot');
+    s.style.left = c.left - pad + 'px';
+    s.style.top = c.top - pad + 'px';
+    s.style.width = c.w + pad * 2 + 'px';
+    s.style.height = c.h + pad * 2 + 'px';
+    s.classList.add('on');
+    await sleep(ms);
+    s.classList.remove('on');
+  }
+
+  // ---------- TV helpers ----------
+  const tvq = (sel) => tw.document.querySelector(sel);
+  async function tvClick(sel, wait = 700) {
+    const el = typeof sel === 'string' ? tvq(sel) : sel;
+    if (!el) throw new Error('TV element missing: ' + sel);
+    ripple($('#tv'), el);
+    await sleep(160);
+    el.click();
+    await sleep(wait);
+  }
+  async function tvKey(key, wait = 520) {
+    tw.dispatchEvent(new tw.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    tw.dispatchEvent(new tw.KeyboardEvent('keyup', { key, bubbles: true, cancelable: true }));
+    sfx('dpad');
+    await sleep(wait);
+  }
+  function tvHover(el) {
+    el.dispatchEvent(new tw.MouseEvent('mouseover', { bubbles: true }));
+  }
+
+  // ---------- phone helpers ----------
+  const pq = (sel) => pw.document.querySelector(sel);
+  async function phoneTap(sel, wait = 900) {
+    const el = typeof sel === 'string' ? pq(sel) : sel;
+    if (!el) throw new Error('Phone element missing: ' + sel);
+    ripple($('#phone'), el);
+    await sleep(140);
+    el.click();
+    await sleep(wait);
+  }
+  async function phoneType(sel, text, perChar = 85) {
+    const el = pq(sel);
+    ripple($('#phone'), el);
+    await sleep(250);
+    el.focus();
+    el.value = '';
+    for (const ch of text) {
+      el.value += ch;
+      el.dispatchEvent(new pw.Event('input', { bubbles: true }));
+      sfx('key');
+      await sleep(perChar);
+    }
+    el.blur();
+    await sleep(450);
+  }
+  const hub = (cmd) => fetch('/api/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+
+  // ---------- audio capture from the TV frame (exact cue timing + the real synthesized/voice samples) ----------
+  function installAudioCapture(win) {
+    const proto = win.AudioBufferSourceNode.prototype;
+    const origConnect = win.AudioNode.prototype.connect;
+    const origStart = proto.start;
+    const origStop = proto.stop;
+    win.AudioNode.prototype.connect = function (dest, ...rest) {
+      if (this instanceof win.AudioBufferSourceNode && dest instanceof win.GainNode) this.__gain = dest;
+      return origConnect.call(this, dest, ...rest);
+    };
+    proto.start = function (when, ...rest) {
+      try {
+        const buf = this.buffer;
+        if (buf) {
+          if (!show.bufs.has(buf)) show.bufs.set(buf, { id: show.bufs.size, rate: buf.sampleRate, data: buf.getChannelData(0).slice() });
+          const delay = when && when > 0 ? Math.max(0, (when - this.context.currentTime) * 1000) : 0;
+          this.__ev = { id: show.bufs.get(buf).id, t: nowMs() + delay, gain: this.__gain ? this.__gain.gain.value : 1, stop: null };
+          show.audio.push(this.__ev);
+        }
+      } catch (_) {}
+      return origStart.call(this, when, ...rest);
+    };
+    proto.stop = function (when, ...rest) {
+      try {
+        if (this.__ev && this.__ev.stop === null) {
+          const delay = when && when > 0 ? Math.max(0, (when - this.context.currentTime) * 1000) : 0;
+          this.__ev.stop = nowMs() + delay;
+        }
+      } catch (_) {}
+      return origStop.call(this, when, ...rest);
+    };
+  }
+
+  function loadFrame(frame, url) {
+    return new Promise((resolve) => {
+      frame.addEventListener('load', () => resolve(frame.contentWindow), { once: true });
+      frame.src = url;
+    });
+  }
+
+  window.exportAudio = () => ({
+    sfx: show.sfx,
+    audio: show.audio,
+    startedAt: show.startedAt,
+    endedAt: show.endedAt,
+    buffers: Array.from(show.bufs.values()).map((b) => {
+      const i16 = new Int16Array(b.data.length);
+      for (let i = 0; i < i16.length; i++) i16[i] = Math.max(-1, Math.min(1, b.data[i])) * 32767;
+      let bin = '';
+      const u8 = new Uint8Array(i16.buffer);
+      for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+      return { id: b.id, rate: b.rate, b64: btoa(bin) };
+    }),
+  });
+
+  // ================================================================== THE SHOW
+  window.runShow = async () => {
+    // reset hub state, load both live pages
+    await hub({ cmd: 'reset_match' });
+    await hub({ cmd: 'clear_results' });
+    tw = await loadFrame($('#tv'), '/?tv=1');
+    installAudioCapture(tw);
+    const st = tw.document.createElement('style');
+    st.textContent = '.floating-tv-toggle{display:none!important} *{cursor:none!important}';
+    tw.document.head.appendChild(st);
+    await sleep(900);
+    tw.dispatchEvent(new tw.Event('pointerdown'));
+    tw.document.dispatchEvent(new tw.Event('pointerdown'));
+
+    show.startedAt = nowMs();
+
+    // ---------- intro ----------
+    $('#card-intro').classList.add('on');
+    sfx('hit');
+    await sleep(4300);
+    document.body.className = 'mode-solo';
+    $('#card-intro').classList.remove('on');
+    await sleep(900);
+
+    // ---------- 01 marca ----------
+    await caption('A marca <em>FEU</em> em grande', 'Emblema, nome e faixa preta bem legíveis — mesmo a 10 metros do tatami.', '01 · IMAGEM');
+    await sleep(900);
+    await spotlight($('#tv'), tvq('.brand-lockup'), 22, 3600);
+    await sleep(500);
+
+    // ---------- 02 tempos ----------
+    await caption('Tempos rápidos com <em>repetições</em> e descanso', 'Escolhe quantas vezes repetir e quanto descansar — tudo com o comando.', '02 · TEMPOS');
+    await tvClick('[data-bar-action="open_quick"]', 1000);
+    await tvClick('[data-quick-opt="rep+"]', 520);
+    await tvClick('[data-quick-opt="rep+"]', 520);
+    await tvClick('[data-quick-opt="rest+"]', 520);
+    await tvClick('[data-quick-opt="rest+"]', 700);
+    for (const k of ['ArrowRight', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft']) await tvKey(k, 480);
+    await sleep(700);
+    await tvClick('[data-bar-action="back_clock"]', 900).catch(() => tvKey('Escape', 900));
+
+    // ---------- 03 rondas ----------
+    await caption('Rondas: <em>vê antes de guardar</em>', 'O cartão cresce, pulsa e mostra o antes → depois. Confirma com OK.', '03 · RONDAS');
+    await tvClick('[data-bar-action="open_rounds"]', 1100);
+    await tvClick('[data-builder-idx="4"]', 520);
+    await tvClick('[data-builder-idx="4"]', 520);
+    await tvClick('[data-builder-cmd="work+60"]', 700);
+    const slot = tvq('[data-save-slot="1"]');
+    tvHover(slot);
+    await sleep(3200);
+    await tvClick(slot, 1500);
+    await tvClick('#modal-ok', 600);
+    await sleep(2400);
+    await tvClick('[data-bar-action="back_clock"]', 900).catch(() => tvKey('Escape', 900));
+
+    // ---------- 04 som ----------
+    await caption('Voz <em>PT-PT</em> e sons de tatami', 'Buzina, gongo ou apito — com treinador de voz a contar o tempo.', '04 · SOM');
+    await tvClick('[data-bar-action="open_settings"]', 1100);
+    await tvClick('[data-set-pack="CLASSIC_HORN"]', 400);
+    await tvClick('[data-set-cmd="test-sound"]', 2600);
+    await tvClick('[data-set-pack="BELL_GONG"]', 400);
+    await tvClick('[data-set-cmd="test-sound"]', 2800);
+    await tvClick('[data-set-pack="WHISTLE"]', 400);
+    await tvClick('[data-set-cmd="test-sound"]', 2600);
+    await tvClick('[data-set-pack="CLASSIC_HORN"]', 700);
+    await tvClick('[data-bar-action="back_clock"]', 900).catch(() => tvKey('Escape', 900));
+    if (tvq('#screen-settings.is-active')) await tvKey('Escape', 900);
+
+    // ---------- 05 placar + telemóvel ----------
+    tw.document.body.classList.remove('dpad-mode');
+    document.body.className = 'mode-duo';
+    sfx('mark', { name: 'duo' });
+    await sleep(500);
+    await caption('Placar no telemóvel, <em>resultado na TV</em>', 'O instrutor controla tudo pelo Wi-Fi — sem apps, sem contas, sem atrasos.', '05 · PLACAR + TELEMÓVEL');
+    pw = await loadFrame($('#phone'), '/r');
+    await sleep(1800);
+
+    await caption('Escreve os <em>nomes</em>', 'Aparecem na TV letra a letra, em tempo real.');
+    await phoneType('#inp-name-a', 'Rui Silva');
+    await phoneType('#inp-name-b', 'João Costa');
+    await phoneType('#inp-category', 'Adulto · Azul · Médio', 60);
+    await sleep(900);
+
+    await caption('Escolhe a <em>duração</em> da luta', 'De 1 a 10 minutos — sem limites de 5 minutos.');
+    await phoneTap('[data-dur="180"]', 1700);
+
+    await caption('Inicia o combate', 'Contagem por voz: três, dois, um… combate!');
+    await phoneTap('#btn-play-pause', 5600);
+
+    await caption('Pontuação <em>ao vivo</em>', 'Pontos, vantagens e punições — cada toque aparece de imediato na TV.');
+    const taps = [
+      '[data-score="A:points:2"]',
+      '[data-score="B:points:3"]',
+      '[data-score="A:advantages:1"]',
+      '[data-score="A:points:4"]',
+      '[data-score="B:penalties:1"]',
+      '[data-score="A:points:1"]',
+    ];
+    for (const t of taps) await phoneTap(t, 1250);
+    await sleep(900);
+
+    await caption('Reta final: <em>contagem decrescente</em> por voz', 'Dez segundos… até ao “Tempo!”.');
+    await hub({ cmd: 'time_set', seconds: 13 });
+    await sleep(15500);
+
+    await caption('Guarda o <em>resultado</em>', 'Vencedor e método sugeridos automaticamente.');
+    await phoneTap('#btn-open-save', 1800);
+    await phoneTap('#btn-save-only', 1500);
+    await sleep(600);
+    await phoneTap('#btn-open-results', 2200);
+    await caption('Resultados <em>guardados</em>, partilháveis e apagáveis', 'Consulta o histórico, partilha ou apaga individualmente — ou tudo de uma vez.');
+    await sleep(3800);
+
+    // ---------- outro ----------
+    hideCaption();
+    $('#chapter').classList.remove('on');
+    await sleep(500);
+    $('#card-outro').classList.add('on');
+    sfx('hit');
+    await sleep(5200);
+    show.endedAt = nowMs();
+    return true;
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FEU BJJ Cronómetro · Android TV Preview</title>
+  <link rel="icon" type="image/png" href="assets/favicon-64.png" />
+  <link rel="stylesheet" href="css/tv-simulator.css" />
+</head>
+<body>
+  <button type="button" id="btn-restore-dock" class="floating-tv-toggle" title="Mostrar Comando Android TV">◧</button>
+
+  <main class="sim-stage">
+    <section class="tv-bezel" aria-label="Android TV Display">
+      <div id="tv-viewport" class="tv-viewport">
+        <div class="tv-aura"></div>
+        <img src="assets/logo-on-dark.png" alt="" class="tv-watermark" />
+
+        <!-- Persistent Top Chrome -->
+        <header class="top-chrome">
+          <div id="chrome-badge" class="chrome-badge">
+            <span>⏱</span>
+            <span id="chrome-badge-text"></span>
+          </div>
+
+          <div class="brand-lockup">
+            <img src="assets/logo-on-black.png" alt="FEU BJJ" class="brand-lockup__logo" />
+            <div class="brand-lockup__meta">
+              <div class="brand-lockup__title">FEU BJJ</div>
+              <div id="brand-sub" class="brand-lockup__sub">FEU BJJ PORTUGAL · PINHAL NOVO</div>
+              <div class="feu-belt-rule" aria-hidden="true">
+                <span class="feu-belt-rule__body"></span>
+                <span class="feu-belt-rule__bar"><i></i><i></i><i></i></span>
+                <span class="feu-belt-rule__tip"></span>
+              </div>
+            </div>
+          </div>
+
+          <div id="mini-clock" class="mini-clock">
+            <span id="mini-clock-text">00:00:00</span>
+            <span class="mini-clock__ico">🕒</span>
+          </div>
+        </header>
+
+        <!-- 6 Stacked Android TV Screens -->
+        <div class="screen-deck">
+          <!-- Screen 1: Idle Academy Wall Clock -->
+          <section id="screen-clock" class="tv-screen is-active">
+            <div id="wall-eyebrow" class="wall-eyebrow">CRONÓMETRO DE TATAMI</div>
+            <div id="wall-date" class="wall-date"></div>
+            <div id="wall-digits" class="wall-digits">00:00:00</div>
+          </section>
+
+          <!-- Screen 2: 3x5 Quick Single-Timer Grid + Stopwatch -->
+          <section id="screen-quick" class="tv-screen">
+            <div class="quick-topbar">
+              <h2 id="quick-title"></h2>
+              <button type="button" id="btn-stopwatch" class="tv-focusable stopwatch-pill"></button>
+            </div>
+            <div id="quick-options" class="quick-options"></div>
+            <div id="quick-grid" class="quick-grid"></div>
+          </section>
+
+          <!-- Screen 3: Saveable Presets + Templates + Custom Builder -->
+          <section id="screen-rounds" class="tv-screen">
+            <div class="rounds-wrap">
+              <div id="presets-row" class="presets-row"></div>
+              <div id="builder-row" class="builder-row"></div>
+              <div id="templates-strip" class="templates-strip"></div>
+            </div>
+          </section>
+
+          <!-- Screen 4: Colossal Active Countdown / Stopwatch -->
+          <section id="screen-active" class="tv-screen">
+            <div id="phase-headline" class="phase-headline"></div>
+            <div id="timer-digits" class="timer-digits">05:00</div>
+          </section>
+
+          <!-- Screen 5: IBJJF Competition Scoreboard -->
+          <section id="screen-scoreboard" class="tv-screen">
+            <div id="scoreboard-wrap" class="scoreboard-wrap"></div>
+          </section>
+
+          <!-- Screen 6: Tatami Settings -->
+          <section id="screen-settings" class="tv-screen">
+            <div id="settings-panel" class="settings-panel"></div>
+          </section>
+        </div>
+
+        <!-- Sleek Context-Aware Bottom TV Bar -->
+        <footer class="bottom-bar">
+          <div id="bottom-left" class="bar-group"></div>
+          <div id="bottom-right" class="bar-group"></div>
+        </footer>
+        <!-- Confirm dialog (OK / Cancel) + completion toast, both inside the scaled 960x540 stage -->
+        <div id="modal-layer" class="modal-layer" hidden>
+          <div class="modal-card" role="dialog" aria-modal="true">
+            <h3 id="modal-title" class="modal-title"></h3>
+            <div id="modal-body" class="modal-body"></div>
+            <div class="modal-actions">
+              <button type="button" id="modal-ok" class="tv-focusable modal-btn modal-btn--ok" data-modal-act="ok"></button>
+              <button type="button" id="modal-cancel" class="tv-focusable modal-btn" data-modal-act="cancel"></button>
+            </div>
+          </div>
+        </div>
+        <div id="toast-layer" class="toast-layer"></div>
+      </div>
+    </section>
+
+    <!-- Companion Virtual Android TV Remote for Mac Testing -->
+    <aside class="remote-dock" aria-label="Android TV Remote">
+      <div id="remote-title" class="remote-dock__title">Comando Android TV</div>
+
+      <div class="dpad-ring">
+        <button type="button" class="dpad-btn dpad-btn--up" data-dpad="up" aria-label="D-Pad Up">▲</button>
+        <button type="button" class="dpad-btn dpad-btn--left" data-dpad="left" aria-label="D-Pad Left">◀</button>
+        <button type="button" class="dpad-ok" data-dpad="ok">OK</button>
+        <button type="button" class="dpad-btn dpad-btn--right" data-dpad="right" aria-label="D-Pad Right">▶</button>
+        <button type="button" class="dpad-btn dpad-btn--down" data-dpad="down" aria-label="D-Pad Down">▼</button>
+      </div>
+
+      <div class="remote-row">
+        <button type="button" class="remote-key" data-dpad="back" title="Esc / Backspace">↩ Voltar</button>
+        <button type="button" class="remote-key" data-dpad="playpause" title="P">⏯ Pausa</button>
+      </div>
+
+      <div class="locale-seg" role="group" aria-label="Language">
+        <button type="button" data-locale="pt-PT" class="is-on">PT</button>
+        <button type="button" data-locale="en">EN</button>
+        <button type="button" data-locale="es">ES</button>
+      </div>
+
+      <div class="remote-utility">
+        <div class="remote-row">
+          <button type="button" id="btn-speed" class="remote-key">1× Real</button>
+          <button type="button" id="btn-fullscreen" class="remote-key">Ecrã Inteiro</button>
+        </div>
+        <button type="button" id="btn-test-sound" class="remote-key">🔊 Testar Som</button>
+      </div>
+    </aside>
+  </main>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/dpad.js"></script>
+  <script src="js/qr.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

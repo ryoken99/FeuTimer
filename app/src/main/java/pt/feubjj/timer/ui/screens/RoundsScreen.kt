@@ -131,7 +131,7 @@ fun RoundsScreen(
     val builderConfig = customBuilder.toRoundConfig()
     val showPopup = section == RoundSection.CUSTOM && previewSlot != null && pendingSaveSlot == null
     // Everything behind the popup softly blurs (Android 12+) and always darkens, so the popup is the only thing to read
-    val backdropBlur by animateDpAsState(if (showPopup) 10.dp else 0.dp, tween(200), label = "popupBlur")
+    val backdropBlur by animateDpAsState(if (showPopup) 8.dp else 0.dp, tween(200), label = "popupBlur")
     val backdropDim by animateFloatAsState(if (showPopup) 0.62f else 0f, tween(200), label = "popupDim")
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -345,15 +345,45 @@ private fun SlotPreviewPopup(slotNumber: Int, preset: RoundPresetOption, after: 
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = "$slotNumber · ${presetTitleText(preset).uppercase()}",
-            maxLines = 1,
-            style = FeuTypography.Eyebrow.copy(
-                color = FeuColors.CrownGold,
-                fontSize = 15.sp,
-                letterSpacing = 1.2.sp
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "$slotNumber · ${presetTitleText(preset).uppercase()}",
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+                style = FeuTypography.Eyebrow.copy(
+                    color = FeuColors.CrownGold,
+                    fontSize = 15.sp,
+                    letterSpacing = 1.2.sp
+                )
             )
-        )
+            // Sharp mirror of the (blurred) Guardar 1-4 selector so you always see which slot you are on
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (n in 1..4) {
+                    val active = n == slotNumber
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (active) FeuColors.CrownGold else FeuColors.CardSurfaceHover)
+                            .border(2.dp, if (active) FeuColors.GiWhite else FeuColors.HairlineStrong, RoundedCornerShape(8.dp))
+                    ) {
+                        Text(
+                            text = "$n",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (active) FeuColors.TatamiBlack else FeuColors.GiRestIvory
+                            )
+                        )
+                    }
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween

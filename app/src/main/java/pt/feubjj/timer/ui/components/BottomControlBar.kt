@@ -251,7 +251,7 @@ fun BottomControlBar(
                 OptionPill(stringResource(R.string.nav_update), selected = false, onClick = {
                     val url = Uri.parse("https://github.com/ryoken99/FeuTimer/releases/latest/download/FeuTimer-AndroidTV.apk")
                     try {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, url))
+                        context.startActivity(Intent(Intent.ACTION_VIEW, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     } catch (_: ActivityNotFoundException) {
                         Toast.makeText(context, R.string.update_browser_required, Toast.LENGTH_LONG).show()
                     }

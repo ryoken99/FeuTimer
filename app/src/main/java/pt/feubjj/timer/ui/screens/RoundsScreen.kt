@@ -6,28 +6,15 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,12 +64,12 @@ import pt.feubjj.timer.ui.components.TvFocusableSurface
 import pt.feubjj.timer.ui.theme.FeuColors
 import pt.feubjj.timer.ui.theme.FeuTypography
 
-/**
- * High-legibility Multi-Round Presets, Quick BJJ Templates, and Custom Round Builder:
- * 1. Top Row: 4 Saveable Academy Preset Slots (bold numbers + explicit RONDAS / LUTA / DESCANSO labels).
- * 2. Quick Template Strip: Instant load of Open-Mat ∞, Endurance, Black Belt, High Pace, Shark Tank, or Tabata.
- * 3. Bottom Row: Custom Builder with `+` on LEFT and `−` on RIGHT, `∞` Endless toggle, `±1m` jump pills, Play circle, and Slot Savers.
- */
+private enum class RoundSection(val label: Int) {
+    SAVED(R.string.round_section_saved),
+    CUSTOM(R.string.round_section_custom),
+    TEMPLATES(R.string.round_section_templates)
+}
+
 @Composable
 fun RoundsScreen(
     presetSlots: List<RoundPresetOption>,
@@ -99,14 +86,23 @@ fun RoundsScreen(
     onStartCustom: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var section by remember { mutableStateOf(RoundSection.SAVED) }
+    val tabFocus = remember { RoundSection.entries.associateWith { FocusRequester() } }
+    val templateFocus = remember { FocusRequester() }
+    var enterPanel by remember { mutableIntStateOf(0) }
     val firstPresetFocus = remember { FocusRequester() }
     // Explicit focus targets so +1m/-1m tags go DOWN to their own stepper, and the rightmost card goes RIGHT to Play
     val repeatMinusFocus = remember { FocusRequester() }
     val workMinusFocus = remember { FocusRequester() }
     val restMinusFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        runCatching { firstPresetFocus.requestFocus() }
+    LaunchedEffect(enterPanel) {
+        if (enterPanel == 0) tabFocus.getValue(section).requestFocus()
+        else when (section) {
+            RoundSection.SAVED -> firstPresetFocus.requestFocus()
+            RoundSection.CUSTOM -> playFocus.requestFocus()
+            RoundSection.TEMPLATES -> templateFocus.requestFocus()
+        }
     }
 
     // Save-to-slot flow: focus on a Guardar number previews the overwrite, OK opens a confirm dialog, then a toast confirms
@@ -128,79 +124,90 @@ fun RoundsScreen(
             .padding(horizontal = 36.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        // 1. Top Row: 4 Saveable Academy Preset Cards
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            presetSlots.forEachIndexed { index, preset ->
-                PresetRoundCard(
-                    slotNumber = index + 1,
-                    preset = preset,
-                    previewConfig = if (previewSlot == index) builderConfig else null,
-                    savedFlash = savedSlot == index,
-                    onClick = { onSelectPreset(preset.config) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .then(if (index == 0) Modifier.focusRequester(firstPresetFocus) else Modifier)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RoundSection.entries.forEach { tab ->
+                OptionPill(
+                    label = stringResource(tab.label),
+                    selected = tab == section,
+                    onClick = {
+                        section = tab
+                        enterPanel++
+                    },
+                    modifier = Modifier.focusRequester(tabFocus.getValue(tab))
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 2. Row: 4-Column Custom Builder (+ on Left, - on Right + fast helpers)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            CustomRepeatColumn(
-                customBuilder = customBuilder,
-                onToggleEndless = onToggleEndless,
-                onIncrease = { onAdjustRepeat(true) },
-                onDecrease = { onAdjustRepeat(false) },
-                minusFocus = repeatMinusFocus,
-                modifier = Modifier.weight(1f)
-            )
-            CustomDurationColumn(
-                title = stringResource(id = R.string.custom_col_work),
-                valueText = customBuilder.formattedWork,
-                unitText = unitLabelForSeconds(customBuilder.workSeconds),
-                onPlusStep = { onAdjustWorkSmart(true) },
-                onMinusStep = { onAdjustWorkSmart(false) },
-                onPlusMinute = { onAdjustWorkMinute(true) },
-                onMinusMinute = { onAdjustWorkMinute(false) },
-                minusFocus = workMinusFocus,
-                modifier = Modifier.weight(1f)
-            )
-            CustomDurationColumn(
-                title = stringResource(id = R.string.custom_col_rest),
-                valueText = customBuilder.formattedRest,
-                unitText = unitLabelForSeconds(customBuilder.restSeconds),
-                onPlusStep = { onAdjustRestSmart(true) },
-                onMinusStep = { onAdjustRestSmart(false) },
-                onPlusMinute = { onAdjustRestMinute(true) },
-                onMinusMinute = { onAdjustRestMinute(false) },
-                minusFocus = restMinusFocus,
-                rightFocus = playFocus,
-                modifier = Modifier.weight(1f)
-            )
-            CustomStartAndSaveColumn(
-                totalDurationText = customBuilder.formattedTotal,
-                onStart = onStartCustom,
-                onSaveSlot = { pendingSaveSlot = it },
-                onSlotFocusChange = { slot, focused ->
-                    if (focused) previewSlot = slot else if (previewSlot == slot) previewSlot = null
-                },
-                playFocus = playFocus,
-                modifier = Modifier.weight(1f)
-            )
+        Spacer(Modifier.height(16.dp))
+        when (section) {
+            RoundSection.SAVED -> Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                presetSlots.forEachIndexed { index, preset ->
+                    PresetRoundCard(
+                        slotNumber = index + 1,
+                        preset = preset,
+                        previewConfig = if (previewSlot == index) builderConfig else null,
+                        savedFlash = savedSlot == index,
+                        onClick = { onSelectPreset(preset.config) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(if (index == 0) Modifier.focusRequester(firstPresetFocus) else Modifier)
+                    )
+                }
+            }
+            RoundSection.CUSTOM -> Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                CustomRepeatColumn(
+                    customBuilder = customBuilder,
+                    onToggleEndless = onToggleEndless,
+                    onIncrease = { onAdjustRepeat(true) },
+                    onDecrease = { onAdjustRepeat(false) },
+                    minusFocus = repeatMinusFocus,
+                    modifier = Modifier.weight(1f)
+                )
+                CustomDurationColumn(
+                    title = stringResource(id = R.string.custom_col_work),
+                    valueText = customBuilder.formattedWork,
+                    unitText = unitLabelForSeconds(customBuilder.workSeconds),
+                    onPlusStep = { onAdjustWorkSmart(true) },
+                    onMinusStep = { onAdjustWorkSmart(false) },
+                    onPlusMinute = { onAdjustWorkMinute(true) },
+                    onMinusMinute = { onAdjustWorkMinute(false) },
+                    minusFocus = workMinusFocus,
+                    modifier = Modifier.weight(1f)
+                )
+                CustomDurationColumn(
+                    title = stringResource(id = R.string.custom_col_rest),
+                    valueText = customBuilder.formattedRest,
+                    unitText = unitLabelForSeconds(customBuilder.restSeconds),
+                    onPlusStep = { onAdjustRestSmart(true) },
+                    onMinusStep = { onAdjustRestSmart(false) },
+                    onPlusMinute = { onAdjustRestMinute(true) },
+                    onMinusMinute = { onAdjustRestMinute(false) },
+                    minusFocus = restMinusFocus,
+                    rightFocus = playFocus,
+                    modifier = Modifier.weight(1f)
+                )
+                CustomStartAndSaveColumn(
+                    totalDurationText = customBuilder.formattedTotal,
+                    onStart = onStartCustom,
+                    onSaveSlot = { pendingSaveSlot = it },
+                    onSlotFocusChange = { slot, focused ->
+                        if (focused) previewSlot = slot else if (previewSlot == slot) previewSlot = null
+                    },
+                    playFocus = playFocus,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            RoundSection.TEMPLATES -> TemplateGrid(templateFocus) {
+                onLoadTemplate(it)
+                section = RoundSection.CUSTOM
+                enterPanel++
+            }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 3. Quick templates: side-scrolling strip at the bottom, full text, edges fade where more options hide
-        TemplateStrip(onLoadTemplate = onLoadTemplate)
     }
 
     pendingSaveSlot?.let { slot ->
@@ -248,95 +255,26 @@ fun RoundsScreen(
 }
 
 @Composable
-private fun TemplateStrip(onLoadTemplate: (RoundConfig) -> Unit) {
-    val scrollState = rememberScrollState()
-    val scope = rememberCoroutineScope()
-    var viewportPx by remember { mutableIntStateOf(0) }
-    val pillLeft = remember { mutableMapOf<Int, Float>() }
-    val pillWidth = remember { mutableMapOf<Int, Int>() }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .onSizeChanged { viewportPx = it.width }
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                val fadeW = 56.dp.toPx()
-                if (scrollState.value > 2) {
-                    drawRect(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(Color.Transparent, Color.Black),
-                            startX = 0f,
-                            endX = fadeW
-                        ),
-                        size = androidx.compose.ui.geometry.Size(fadeW, size.height),
-                        blendMode = BlendMode.DstIn
-                    )
-                }
-                if (scrollState.maxValue - scrollState.value > 2) {
-                    drawRect(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(Color.Black, Color.Transparent),
-                            startX = size.width - fadeW,
-                            endX = size.width
-                        ),
-                        topLeft = Offset(size.width - fadeW, 0f),
-                        size = androidx.compose.ui.geometry.Size(fadeW, size.height),
-                        blendMode = BlendMode.DstIn
-                    )
-                }
-            }
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .horizontalScroll(scrollState)
-                .padding(vertical = 6.dp)
-        ) {
-            PresetCatalog.templateLibrary.forEachIndexed { index, tpl ->
-                val label = when (tpl.titleKey) {
-                    "tpl_open_mat" -> stringResource(id = R.string.tpl_open_mat)
-                    "tpl_endurance" -> stringResource(id = R.string.tpl_endurance)
-                    "tpl_black_belt" -> stringResource(id = R.string.tpl_black_belt)
-                    "tpl_high_pace" -> stringResource(id = R.string.tpl_high_pace)
-                    "tpl_shark_tank" -> stringResource(id = R.string.tpl_shark_tank)
-                    else -> stringResource(id = R.string.tpl_tabata)
-                }
-                TvFocusableSurface(
-                    onClick = { onLoadTemplate(tpl.config) },
-                    shape = RoundedCornerShape(999.dp),
-                    containerColor = FeuColors.CardSurfaceHover,
-                    focusedContainerColor = FeuColors.GiWhite,
-                    borderColor = FeuColors.HairlineStrong,
-                    focusedBorderColor = FeuColors.FeuRed,
-                    onFocusChange = { focused ->
-                        if (focused && viewportPx > 0) {
-                            val left = pillLeft[index] ?: return@TvFocusableSurface
-                            val width = pillWidth[index] ?: return@TvFocusableSurface
-                            // Centre the focused pill so its neighbours peek in on both sides
-                            val target = (left + width / 2f - viewportPx / 2f).toInt().coerceIn(0, scrollState.maxValue)
-                            scope.launch { scrollState.animateScrollTo(target) }
-                        }
-                    },
-                    modifier = Modifier
-                        .height(38.dp)
-                        .onGloballyPositioned {
-                            pillLeft[index] = it.positionInParent().x
-                            pillWidth[index] = it.size.width
-                        }
-                ) { isFocused ->
-                    Text(
-                        text = label,
-                        maxLines = 1,
-                        softWrap = false,
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (isFocused) FeuColors.TatamiBlack else FeuColors.GiWhite
-                        ),
-                        modifier = Modifier.padding(horizontal = 18.dp)
+private fun TemplateGrid(firstFocus: FocusRequester, onLoad: (RoundConfig) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PresetCatalog.templateLibrary.chunked(2).forEachIndexed { row, templates ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                templates.forEachIndexed { column, template ->
+                    val label = when (template.titleKey) {
+                        "tpl_open_mat" -> R.string.tpl_open_mat
+                        "tpl_endurance" -> R.string.tpl_endurance
+                        "tpl_black_belt" -> R.string.tpl_black_belt
+                        "tpl_high_pace" -> R.string.tpl_high_pace
+                        "tpl_shark_tank" -> R.string.tpl_shark_tank
+                        else -> R.string.tpl_tabata
+                    }
+                    OptionPill(
+                        label = stringResource(label),
+                        selected = false,
+                        onClick = { onLoad(template.config) },
+                        modifier = Modifier.weight(1f).then(
+                            if (row == 0 && column == 0) Modifier.focusRequester(firstFocus) else Modifier
+                        )
                     )
                 }
             }

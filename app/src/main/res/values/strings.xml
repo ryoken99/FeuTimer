@@ -97,4 +97,7 @@
     <string name="save_done" tools:ignore="PluralsCandidate">✓ Predefinição %1$d guardada</string>
     <string name="nav_update">Atualizar</string>
     <string name="update_browser_required">Abre o GitHub num navegador para descarregar o APK.</string>
+    <string name="round_section_saved">Treinos guardados</string>
+    <string name="round_section_custom">Personalizar</string>
+    <string name="round_section_templates">Modelos</string>
 </resources>

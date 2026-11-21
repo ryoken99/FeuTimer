@@ -12,7 +12,8 @@
 
   const STORAGE_KEY = 'feu.tv.simulator.v3';
 
-  const roundsPreview = new URLSearchParams(location.search).get('rondas') === 'tv';
+  const roundMode = new URLSearchParams(location.search).get('rondas');
+  const roundsPreview = roundMode !== 'classico';
   const roundSections = ['presets', 'builder', 'templates'];
   let roundSection = 'presets';
 
@@ -1231,7 +1232,7 @@
     setHtml(
       els.bottomRight,
       model.right.map((item, rIdx) => renderBarItem(item, model.left.length + rIdx)).join('') +
-        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.5</span>`
+        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.6</span>`
     );
   }
 
@@ -1730,8 +1731,11 @@
       document.body.classList.add('is-tv-only');
     }
     if (roundsPreview) {
-      document.body.classList.add('rounds-preview', 'dpad-mode');
-      state.screen = 'ROUNDS';
+      document.body.classList.add('rounds-preview');
+      if (roundMode === 'tv') {
+        document.body.classList.add('dpad-mode');
+        state.screen = 'ROUNDS';
+      }
     }
     wireEvents();
     renderAll();

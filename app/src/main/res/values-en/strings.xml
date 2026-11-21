@@ -91,4 +91,7 @@
     <string name="save_done" tools:ignore="PluralsCandidate">✓ Preset %1$d saved</string>
     <string name="nav_update">Update</string>
     <string name="update_browser_required">Open GitHub in a browser to download the APK.</string>
+    <string name="round_section_saved">Saved sessions</string>
+    <string name="round_section_custom">Custom session</string>
+    <string name="round_section_templates">Templates</string>
 </resources>

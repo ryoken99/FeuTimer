@@ -13,6 +13,6 @@ Android TV / Android timer for FEU BJJ Portugal · Pinhal Novo (Kotlin + Jetpack
 - Simulator: `node web/serve.cjs` → http://127.0.0.1:8788/ (phone console at `/r`)
 - Web tests: `node --test web/tests/timer-web.test.cjs`
 - Android: JDK 21 + Android SDK, then `./gradlew testDebugUnitTest assembleRelease`
-- Install: `adb install dist/FeuTimer-AndroidTV-v1.3.4.apk`
+- Android TV installation and upgrades: [Guia de instalação na TV](tools/tv-install/INSTALAR-NA-TV.md). Download the APK or the TV bundle from [GitHub Releases](https://github.com/ryoken99/FeuTimer/releases/latest).
 
 See `docs/guides/how-to-run-and-install.md` and `docs/reference/functions-and-modules.md` for details.

@@ -1149,6 +1149,9 @@
       }
     } else {
       left.push({ id: 'back_clock', label: '◀', kind: 'circle' });
+      if (state.screen === 'SETTINGS') {
+        right.push({ id: 'download_update', label: I18n.t(L, 'nav_update'), kind: 'option' });
+      }
     }
 
     return { left, right, totalCount: left.length + right.length };
@@ -1157,6 +1160,9 @@
   function renderBarItem(item, idx) {
     const focused = false;
     const fCls = focused ? ' is-dpad-focused' : '';
+    if (item.kind === 'option') {
+      return `<button type="button" class="tv-focusable opt-pill" data-bar-idx="${idx}" data-bar-action="${item.id}">${item.label}</button>`;
+    }
     if (item.kind === 'circle') {
       return `<button type="button" class="tv-focusable media-circle${fCls}" data-bar-idx="${idx}" data-bar-action="${item.id}">${item.label}</button>`;
     }
@@ -1209,7 +1215,7 @@
     setHtml(
       els.bottomRight,
       model.right.map((item, rIdx) => renderBarItem(item, model.left.length + rIdx)).join('') +
-        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.4</span>`
+        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.5</span>`
     );
   }
 
@@ -1247,6 +1253,10 @@
     else if (actionId === 'open_rounds') openRounds();
     else if (actionId === 'open_scoreboard') openScoreboard();
     else if (actionId === 'open_settings') openSettings();
+    else if (actionId === 'download_update') {
+      const localServer = tvWs?.readyState === WebSocket.OPEN && ['localhost', '127.0.0.1'].includes(location.hostname);
+      location.assign(localServer ? '/update/web' : 'https://github.com/ryoken99/FeuTimer/releases/latest/download/FeuTimer-web.zip');
+    }
     else if (actionId === 'repeat_last') startSession(state.lastSessionConfig);
     else if (actionId === 'back_clock') returnToClock();
     else if (actionId === 'play_pause') togglePlayPause();

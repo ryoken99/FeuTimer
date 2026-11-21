@@ -104,7 +104,7 @@ object TimerEngine {
             TimerPhase.PAUSED,
             TimerPhase.FINISHED -> StepResult(current, null)
 
-            TimerPhase.LEAD_IN -> tickLeadIn(current, config)
+            TimerPhase.LEAD_IN -> tickLeadIn(current, config, preferences)
             TimerPhase.RUNNING_WORK -> tickWork(current, config, preferences)
             TimerPhase.RUNNING_REST -> tickRest(current, config, preferences)
             TimerPhase.RUNNING_STOPWATCH -> tickStopwatch(current)
@@ -193,6 +193,11 @@ object TimerEngine {
                 remainingSeconds = 0L,
                 isBlinking = current.phase == TimerPhase.PAUSED
             )
+        }
+        if (current.phase == TimerPhase.RUNNING_REST ||
+            (current.phase == TimerPhase.PAUSED && current.pausedFromPhase == TimerPhase.RUNNING_REST)
+        ) {
+            return current.copy(remainingSeconds = config.restSeconds, phaseTotalSeconds = config.restSeconds)
         }
         return current.copy(
             phase = if (current.phase == TimerPhase.PAUSED) TimerPhase.PAUSED else TimerPhase.RUNNING_WORK,
@@ -300,7 +305,7 @@ object TimerEngine {
         )
     }
 
-    private fun tickLeadIn(current: TimerSnapshot, config: RoundConfig): StepResult {
+    private fun tickLeadIn(current: TimerSnapshot, config: RoundConfig, preferences: SoundPreferences): StepResult {
         return when {
             current.leadInCount > 1 -> {
                 val nextCount = current.leadInCount - 1
@@ -317,14 +322,8 @@ object TimerEngine {
             }
             else -> {
                 val nextPhase = if (config.isStopwatch) TimerPhase.RUNNING_STOPWATCH else TimerPhase.RUNNING_WORK
-                StepResult(
-                    snapshot = current.copy(
-                        phase = nextPhase,
-                        leadInCount = 0,
-                        isBlinking = nextPhase == TimerPhase.RUNNING_WORK && current.remainingSeconds in 1L..10L
-                    ),
-                    cue = null
-                )
+                val running = current.copy(phase = nextPhase, isBlinking = false)
+                if (config.isStopwatch) tickStopwatch(running) else tickWork(running, config, preferences)
             }
         }
     }

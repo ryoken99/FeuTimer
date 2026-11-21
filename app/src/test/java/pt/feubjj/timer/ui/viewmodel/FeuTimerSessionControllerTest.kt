@@ -103,11 +103,11 @@ class FeuTimerSessionControllerTest {
         assertEquals(TimerPhase.LEAD_IN, controller.uiState.value.timer.phase)
         assertEquals(listOf(SoundCue.COUNT_3), sounds.playedCues)
 
-        // 4 seconds of lead-in -> enters RUNNING_WORK (30s)
+        // One second after the horn, the clock shows 29s
         advanceTimeBy(4_000L)
         runCurrent()
         assertEquals(TimerPhase.RUNNING_WORK, controller.uiState.value.timer.phase)
-        assertEquals(30L, controller.uiState.value.timer.remainingSeconds)
+        assertEquals(29L, controller.uiState.value.timer.remainingSeconds)
         assertTrue(sounds.playedCues.contains(SoundCue.FIGHT_HORN))
 
         // Pause via TV remote Play/Pause key for 5 seconds -> time does not advance
@@ -115,11 +115,11 @@ class FeuTimerSessionControllerTest {
         assertEquals(TimerPhase.PAUSED, controller.uiState.value.timer.phase)
         advanceTimeBy(5_000L)
         runCurrent()
-        assertEquals(30L, controller.uiState.value.timer.remainingSeconds)
+        assertEquals(29L, controller.uiState.value.timer.remainingSeconds)
 
-        // Resume and run 30 seconds to 00:00 -> counts 10..1, plays end alarm, returns to CLOCK after 3s
+        // Resume and run 29 seconds to 00:00 -> counts 10..1, plays end alarm, returns to CLOCK after 3s
         controller.togglePlayPause()
-        advanceTimeBy(30_000L)
+        advanceTimeBy(29_000L)
         runCurrent()
         assertEquals(TimerPhase.FINISHED, controller.uiState.value.timer.phase)
         assertTrue(sounds.playedCues.contains(SoundCue.COUNT_10))
@@ -151,7 +151,7 @@ class FeuTimerSessionControllerTest {
         advanceTimeBy(4_000L)
         runCurrent()
         assertEquals(TimerPhase.RUNNING_WORK, controller.uiState.value.timer.phase)
-        assertEquals(180L, controller.uiState.value.timer.remainingSeconds)
+        assertEquals(179L, controller.uiState.value.timer.remainingSeconds)
         // Every count-in beat is announced, in order: Três, Dois, Um, Combate!
         assertEquals(
             listOf(SoundCue.COUNT_3, SoundCue.COUNT_2, SoundCue.COUNT_1, SoundCue.FIGHT_HORN),
@@ -159,7 +159,7 @@ class FeuTimerSessionControllerTest {
         )
 
         // Run the full 3:00 -> vocal 10..1 countdown and match end announcement
-        advanceTimeBy(180_000L)
+        advanceTimeBy(179_000L)
         runCurrent()
         assertEquals(TimerPhase.FINISHED, controller.uiState.value.timer.phase)
         assertTrue(sounds.playedCues.contains(SoundCue.COUNT_10))

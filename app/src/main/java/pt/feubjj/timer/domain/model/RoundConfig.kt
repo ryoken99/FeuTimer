@@ -105,7 +105,7 @@ data class CustomRoundBuilderState(
 
     fun adjustWorkSeconds(increase: Boolean, stepSeconds: Long = 10L): CustomRoundBuilderState {
         val delta = if (increase) stepSeconds else -stepSeconds
-        return copy(workSeconds = (workSeconds + delta).coerceIn(MIN_WORK_SECONDS, MAX_SECONDS))
+        return copy(workSeconds = (workSeconds + delta).coerceIn(minOf(workSeconds, MIN_WORK_SECONDS), MAX_SECONDS))
     }
 
     /** Uses 5s steps below 30s (for Tabata 20s/15s) and 10s steps at 30s+. */

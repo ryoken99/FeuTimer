@@ -41,10 +41,10 @@ class TimerEngineTest {
         assertEquals(0, tick3.snapshot.leadInCount)
         assertEquals(SoundCue.FIGHT_HORN, tick3.cue)
 
-        // Completion of lead-in transitions into RUNNING_WORK at full 60s
+        // One second has elapsed since the start horn
         val tick4 = TimerEngine.tickOneSecond(tick3.snapshot, prefs)
         assertEquals(TimerPhase.RUNNING_WORK, tick4.snapshot.phase)
-        assertEquals(60L, tick4.snapshot.remainingSeconds)
+        assertEquals(59L, tick4.snapshot.remainingSeconds)
         assertFalse(tick4.snapshot.isBlinking)
         assertNull(tick4.cue)
     }
@@ -115,7 +115,7 @@ class TimerEngineTest {
         assertEquals(SoundCue.COUNT_3, step.cue)
 
         // Finish lead-in + Round 2 -> FINISHED + ROUND_END_ALARM ("Tempo! Fim do treino!")
-        repeat(4 + 12) { step = TimerEngine.tickOneSecond(step.snapshot, prefs) }
+        repeat(3 + 12) { step = TimerEngine.tickOneSecond(step.snapshot, prefs) }
         assertEquals(TimerPhase.FINISHED, step.snapshot.phase)
         assertEquals(SoundCue.ROUND_END_ALARM, step.cue)
     }

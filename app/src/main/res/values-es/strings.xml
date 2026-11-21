@@ -89,4 +89,6 @@
     <string name="save_ok">Guardar</string>
     <string name="save_cancel">Cancelar</string>
     <string name="save_done" tools:ignore="PluralsCandidate">✓ Preajuste %1$d guardado</string>
+    <string name="nav_update">Actualizar</string>
+    <string name="update_browser_required">Abre GitHub en un navegador para descargar el APK.</string>
 </resources>

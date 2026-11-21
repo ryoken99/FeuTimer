@@ -89,4 +89,6 @@
     <string name="save_ok">Save</string>
     <string name="save_cancel">Cancel</string>
     <string name="save_done" tools:ignore="PluralsCandidate">✓ Preset %1$d saved</string>
+    <string name="nav_update">Update</string>
+    <string name="update_browser_required">Open GitHub in a browser to download the APK.</string>
 </resources>

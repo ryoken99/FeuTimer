@@ -1,5 +1,11 @@
 package pt.feubjj.timer.ui.components
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import pt.feubjj.timer.ui.screens.OptionPill
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -240,6 +246,17 @@ fun BottomControlBar(
                 )
             }
 
+            if (screen == TvScreen.SETTINGS) {
+                val context = LocalContext.current
+                OptionPill(stringResource(R.string.nav_update), selected = false, onClick = {
+                    val url = Uri.parse("https://github.com/ryoken99/FeuTimer/releases/latest/download/FeuTimer-AndroidTV.apk")
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, url))
+                    } catch (_: ActivityNotFoundException) {
+                        Toast.makeText(context, R.string.update_browser_required, Toast.LENGTH_LONG).show()
+                    }
+                })
+            }
             val versionText = stringResource(id = R.string.version_label, BuildConfig.VERSION_NAME)
             Text(
                 text = buildAnnotatedString {

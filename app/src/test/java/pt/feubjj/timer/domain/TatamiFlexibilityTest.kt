@@ -135,13 +135,13 @@ class TatamiFlexibilityTest {
         assertEquals(5, step.snapshot.leadInCount)
         assertEquals(SoundCue.COUNT_5, step.cue)
 
-        // 5 lead-in seconds + 1 GO horn second = 6 ticks to reach RUNNING_WORK
+        // The sixth tick consumes the first second after the horn.
         repeat(6) { step = TimerEngine.tickOneSecond(step.snapshot, prefs) }
         assertEquals(TimerPhase.RUNNING_WORK, step.snapshot.phase)
-        assertEquals(125L, step.snapshot.remainingSeconds)
+        assertEquals(124L, step.snapshot.remainingSeconds)
 
-        // 125 -> 120: emits WARN_2M ("Dois minutos!")
-        repeat(5) { step = TimerEngine.tickOneSecond(step.snapshot, prefs) }
+        // 124 -> 120: emits WARN_2M ("Dois minutos!")
+        repeat(4) { step = TimerEngine.tickOneSecond(step.snapshot, prefs) }
         assertEquals(120L, step.snapshot.remainingSeconds)
         assertEquals(SoundCue.WARN_2M, step.cue)
 

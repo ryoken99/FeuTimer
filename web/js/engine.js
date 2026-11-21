@@ -57,7 +57,7 @@
     },
     adjustWork(state, increase, step = 10) {
       const delta = increase ? step : -step;
-      return { ...state, workSeconds: clamp(state.workSeconds + delta, MIN_WORK, MAX_SECONDS) };
+      return { ...state, workSeconds: clamp(state.workSeconds + delta, Math.min(state.workSeconds, MIN_WORK), MAX_SECONDS) };
     },
     adjustWorkSmart(state, increase) {
       const step = (increase && state.workSeconds < 30) || (!increase && state.workSeconds <= 30) ? 5 : 10;
@@ -275,6 +275,9 @@
       if (cfg.isStopwatch) {
         return { ...current, remainingSeconds: 0, isBlinking: current.phase === 'PAUSED' };
       }
+      if (current.phase === 'RUNNING_REST' || (current.phase === 'PAUSED' && current.pausedFromPhase === 'RUNNING_REST')) {
+        return { ...current, remainingSeconds: cfg.restSeconds, phaseTotalSeconds: cfg.restSeconds };
+      }
       return {
         ...current,
         phase: current.phase === 'PAUSED' ? 'PAUSED' : 'RUNNING_WORK',
@@ -390,15 +393,8 @@
           };
         }
         const nextPhase = config.isStopwatch ? 'RUNNING_STOPWATCH' : 'RUNNING_WORK';
-        return {
-          snapshot: {
-            ...current,
-            phase: nextPhase,
-            leadInCount: 0,
-            isBlinking: nextPhase === 'RUNNING_WORK' && current.remainingSeconds >= 1 && current.remainingSeconds <= 10,
-          },
-          cue: null,
-        };
+        // The horn sounded one tick ago while the GO banner was visible.
+        return this.tick({ ...current, phase: nextPhase, isBlinking: false }, preferences);
       }
 
       if (current.phase === 'RUNNING_WORK') {

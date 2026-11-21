@@ -193,7 +193,7 @@ private fun SettingRow(
 }
 
 @Composable
-private fun OptionPill(
+internal fun OptionPill(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
+const { execFile } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -9,6 +10,7 @@ const path = require('node:path');
 
 const ROOT = __dirname;
 const REFEREE_HTML_PATH = path.resolve(ROOT, '../app/src/main/assets/referee/index.html');
+const BIND_HOST = process.env.FEU_BIND_HOST || '0.0.0.0';
 const TV_PORT = Number(process.env.PORT || 8788);
 const REFEREE_PORT = Number(process.env.REFEREE_PORT || 7777);
 
@@ -26,6 +28,7 @@ const MIME = {
 };
 
 function findLanIp() {
+  if (BIND_HOST === '127.0.0.1') return BIND_HOST;
   const nets = os.networkInterfaces();
   const candidates = [];
   for (const [name, list] of Object.entries(nets)) {
@@ -375,6 +378,27 @@ function serveRefereeHtml(res) {
 // 1. Main TV Simulator Server (:8788, plus /r shortcut for Mobile Referee)
 const tvServer = http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (req.method === 'GET' && urlPath === '/update/web') {
+    const releaseUrl = 'https://github.com/ryoken99/FeuTimer/releases/latest/download/FeuTimer-web.zip';
+    const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)
+      && ['localhost', '127.0.0.1'].includes((req.headers.host || '').split(':')[0])
+      && req.headers['sec-fetch-site'] === 'same-origin';
+    if (!local) {
+      res.writeHead(302, { Location: releaseUrl }).end();
+      return;
+    }
+    // Use the PC's GitHub session for this fixed private asset. Other devices use their own browser session.
+    execFile('gh', ['release', 'download', '-R', 'github.com/ryoken99/FeuTimer', '-p', 'FeuTimer-web.zip', '-O', '-'],
+      { encoding: 'buffer', windowsHide: true, timeout: 60000, maxBuffer: 32 * 1024 * 1024 }, (error, zip) => {
+        if (error) {
+          res.writeHead(302, { Location: releaseUrl }).end();
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="FeuTimer-web.zip"', 'Cache-Control': 'no-store' });
+        res.end(zip);
+      });
+    return;
+  }
   if (handleApiOrReferee(req, res, urlPath)) return;
   if (urlPath === '/r' || urlPath === '/referee') return serveRefereeHtml(res);
 
@@ -410,10 +434,10 @@ const refereeServer = http.createServer((req, res) => {
 });
 attachWebSocketHandler(refereeServer, 'referee');
 
-tvServer.listen(TV_PORT, '0.0.0.0', () => {
+tvServer.listen(TV_PORT, BIND_HOST, () => {
   const ip = findLanIp();
   console.log(`FEU BJJ Android TV Simulator running at http://127.0.0.1:${TV_PORT}/`);
-  refereeServer.listen(REFEREE_PORT, '0.0.0.0', () => {
+  refereeServer.listen(REFEREE_PORT, BIND_HOST, () => {
     activeRefereePort = REFEREE_PORT;
     console.log(`FEU BJJ Mobile Portrait Referee Console live at http://${ip}:${REFEREE_PORT}/`);
   }).on('error', () => {

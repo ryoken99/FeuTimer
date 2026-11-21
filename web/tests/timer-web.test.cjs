@@ -9,6 +9,15 @@ require('../js/qr.js');
 
 const { I18n, TimeFormatter, Presets, TimerEngine, CustomBuilder, DpadGrid, Scoreboard, Qr } = globalThis.FEU_TIMER;
 
+test('Restart restores the rest duration, including while paused', () => {
+  const prefs = { prepSeconds: 0 };
+  const work = TimerEngine.start({ repeat: 2, workSeconds: 30, restSeconds: 10 }, prefs).snapshot;
+  const rest = TimerEngine.tick(TimerEngine.skipPhase(work, prefs).snapshot, prefs).snapshot;
+  for (const current of [rest, TimerEngine.pause(rest)]) {
+    assert.deepEqual(TimerEngine.restartPhase(current), { ...current, remainingSeconds: 10 });
+  }
+});
+
 test('TimeFormatter formats MM:SS and compact BJJ durations identically to Kotlin engine', () => {
   assert.equal(TimeFormatter.formatMmSs(30), '00:30');
   assert.equal(TimeFormatter.formatMmSs(300), '05:00');
@@ -23,6 +32,7 @@ test('Presets exposes all 15 quick timers and 4 core BJJ sparring presets', () =
 });
 
 test('CustomBuilder enforces step increments, endless toggle, and bounds', () => {
+  assert.equal(CustomBuilder.adjustWork(CustomBuilder.create({ workSeconds: 5 }), false, 60).workSeconds, 5);
   let b = CustomBuilder.create();
   assert.equal(b.repeat, 2);
   b = CustomBuilder.adjustRepeat(b, true);
@@ -47,10 +57,10 @@ test('TimerEngine runs vocal 3-2-1-HORN lead-in, halfway/50s warnings, 10..1 voc
   assert.equal(step.cue, 'FIGHT_HORN');
   step = TimerEngine.tick(step.snapshot, prefs);
   assert.equal(step.snapshot.phase, 'RUNNING_WORK');
-  assert.equal(step.snapshot.remainingSeconds, 60);
+  assert.equal(step.snapshot.remainingSeconds, 59);
 
-  // 60 -> 50: WARN_50S
-  for (let i = 0; i < 10; i++) step = TimerEngine.tick(step.snapshot, prefs);
+  // 59 -> 50: WARN_50S
+  for (let i = 0; i < 9; i++) step = TimerEngine.tick(step.snapshot, prefs);
   assert.equal(step.snapshot.remainingSeconds, 50);
   assert.equal(step.cue, 'WARN_50S');
 

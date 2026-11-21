@@ -143,7 +143,7 @@ fun FeuTimerAppRoot(
                                     onAdjustWorkMinute = { inc -> controller.adjustCustomWork(inc, 60L) },
                                     onAdjustRestSmart = controller::adjustCustomRestSmart,
                                     onAdjustRestMinute = { inc -> controller.adjustCustomRest(inc, 60L) },
-                                    onSaveToSlot = controller::saveCustomToPresetSlot,
+                                    onSaveToSlot = { slot, name -> controller.saveCustomToPresetSlot(slot, name) },
                                     onStartCustom = controller::startCustomRound
                                 )
 

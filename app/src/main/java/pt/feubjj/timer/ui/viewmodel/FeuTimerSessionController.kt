@@ -198,9 +198,9 @@ class FeuTimerSessionController(
         }
     }
 
-    fun saveCustomToPresetSlot(slotIndex: Int) {
+    fun saveCustomToPresetSlot(slotIndex: Int, name: String? = null) {
         val config = _uiState.value.customBuilder.toRoundConfig()
-        storage.savePresetSlot(slotIndex, config)
+        storage.savePresetSlot(slotIndex, config, name)
         storage.saveCustomRound(config)
         _uiState.update { it.copy(presetSlots = storage.loadPresetSlots()) }
     }

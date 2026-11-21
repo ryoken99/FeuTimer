@@ -85,6 +85,7 @@
     <string name="quick_rest_label">Descanso</string>
     <string name="quick_rest_none">Sin</string>
     <string name="save_dialog_title">¿Guardar en el preajuste %1$d?</string>
+    <string name="save_name_hint">Nombre (opcional)</string>
     <string name="save_dialog_hint">Sustituye el preajuste actual por los valores nuevos.</string>
     <string name="save_ok">Guardar</string>
     <string name="save_cancel">Cancelar</string>

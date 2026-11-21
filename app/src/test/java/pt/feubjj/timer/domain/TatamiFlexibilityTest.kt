@@ -171,6 +171,21 @@ class TatamiFlexibilityTest {
     }
 
     @Test
+    fun `preset slot name is optional, trimmed, capped, and cleared by saving without one`() {
+        val storage = InMemoryTimerStorage()
+        val cfg = RoundConfig(repeat = 3, workSeconds = 120L, restSeconds = 30L)
+
+        storage.savePresetSlot(index = 1, config = cfg)
+        assertEquals(null, storage.loadPresetSlots()[1].customName)
+
+        storage.savePresetSlot(index = 1, config = cfg, name = "  Open mat sábado muito longo  ")
+        assertEquals("Open mat sábad", storage.loadPresetSlots()[1].customName)
+
+        storage.savePresetSlot(index = 1, config = cfg, name = "   ")
+        assertEquals(null, storage.loadPresetSlots()[1].customName)
+    }
+
+    @Test
     fun `IBJJF competition scoreboard tracks names, direct edits, swaps, tie-breaks, and resets`() {
         var score = MatchScoreState()
             .withFighterAName("Carlos Prates")

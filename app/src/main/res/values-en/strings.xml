@@ -85,6 +85,7 @@
     <string name="quick_rest_label">Rest</string>
     <string name="quick_rest_none">None</string>
     <string name="save_dialog_title">Save to preset %1$d?</string>
+    <string name="save_name_hint">Name (optional)</string>
     <string name="save_dialog_hint">Replaces the current preset with the new values.</string>
     <string name="save_ok">Save</string>
     <string name="save_cancel">Cancel</string>

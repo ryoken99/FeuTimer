@@ -4,7 +4,17 @@ package pt.feubjj.timer.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
+import pt.feubjj.timer.domain.presets.PresetNames
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.width
@@ -83,7 +93,7 @@ fun RoundsScreen(
     onAdjustWorkMinute: (Boolean) -> Unit,
     onAdjustRestSmart: (Boolean) -> Unit,
     onAdjustRestMinute: (Boolean) -> Unit,
-    onSaveToSlot: (Int) -> Unit,
+    onSaveToSlot: (Int, String) -> Unit,
     onStartCustom: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -119,11 +129,16 @@ fun RoundsScreen(
         }
     }
     val builderConfig = customBuilder.toRoundConfig()
+    val showPopup = section == RoundSection.CUSTOM && previewSlot != null && pendingSaveSlot == null
+    // Everything behind the popup softly blurs (Android 12+) and always darkens, so the popup is the only thing to read
+    val backdropBlur by animateDpAsState(if (showPopup) 10.dp else 0.dp, tween(200), label = "popupBlur")
+    val backdropDim by animateFloatAsState(if (showPopup) 0.62f else 0f, tween(200), label = "popupDim")
 
     Box(modifier = modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .blur(backdropBlur)
             .padding(horizontal = 36.dp),
         verticalArrangement = Arrangement.Center
     ) {
@@ -214,13 +229,18 @@ fun RoundsScreen(
     }
 
     // The saved cards live on another tab, so hovering a Guardar number fades in this popup: which preset changes + what changes
+    if (backdropDim > 0f) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = backdropDim))
+        )
+    }
     AnimatedVisibility(
-        visible = section == RoundSection.CUSTOM && previewSlot != null && pendingSaveSlot == null,
+        visible = showPopup,
         enter = fadeIn(animationSpec = tween(durationMillis = 180)),
         exit = fadeOut(animationSpec = tween(durationMillis = 140)),
-        modifier = Modifier
-            .align(Alignment.BottomStart)
-            .padding(start = 36.dp, bottom = 74.dp)
+        modifier = Modifier.align(Alignment.Center)
     ) {
         SlotPreviewPopup(
             slotNumber = popupSlot + 1,
@@ -234,8 +254,9 @@ fun RoundsScreen(
             slotNumber = slot + 1,
             before = presetSlots[slot].config,
             after = builderConfig,
-            onConfirm = {
-                onSaveToSlot(slot)
+            initialName = presetSlots[slot].customName.orEmpty(),
+            onConfirm = { name ->
+                onSaveToSlot(slot, name)
                 pendingSaveSlot = null
                 savedSlot = slot
             },
@@ -302,7 +323,7 @@ private fun TemplateGrid(firstFocus: FocusRequester, onLoad: (RoundConfig) -> Un
 }
 
 @Composable
-private fun presetTitleText(preset: RoundPresetOption): String = when (preset.titleKey) {
+private fun presetTitleText(preset: RoundPresetOption): String = preset.customName?.takeIf { it.isNotBlank() } ?: when (preset.titleKey) {
     "preset_adult" -> stringResource(id = R.string.preset_adult)
     "preset_comp" -> stringResource(id = R.string.preset_comp)
     "preset_specific" -> stringResource(id = R.string.preset_specific)
@@ -389,10 +410,12 @@ private fun SaveSlotDialog(
     slotNumber: Int,
     before: RoundConfig,
     after: RoundConfig,
-    onConfirm: () -> Unit,
+    initialName: String,
+    onConfirm: (String) -> Unit,
     onCancel: () -> Unit
 ) {
     val okFocus = remember { FocusRequester() }
+    var name by remember { mutableStateOf(initialName) }
     val oldM = metricTextsOf(before)
     val newM = metricTextsOf(after)
     Dialog(
@@ -419,6 +442,11 @@ private fun SaveSlotDialog(
             DiffRow(stringResource(id = R.string.role_work), oldM.work, newM.work)
             DiffRow(stringResource(id = R.string.role_rest), oldM.rest, newM.rest)
             DiffRow("Total", oldM.total, newM.total)
+            SlotNameField(
+                value = name,
+                onValueChange = { name = it.take(PresetNames.MAX_LENGTH) },
+                onDone = { runCatching { okFocus.requestFocus() } }
+            )
             Text(
                 text = stringResource(id = R.string.save_dialog_hint),
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, color = FeuColors.TextMuted),
@@ -430,7 +458,7 @@ private fun SaveSlotDialog(
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
             ) {
                 TvFocusableSurface(
-                    onClick = onConfirm,
+                    onClick = { onConfirm(name) },
                     shape = RoundedCornerShape(999.dp),
                     containerColor = FeuColors.FeuRedPrimary,
                     focusedContainerColor = FeuColors.GiWhite,
@@ -472,6 +500,54 @@ private fun SaveSlotDialog(
             }
         }
     }
+}
+
+/** Optional preset name: sits between the diff and the buttons, OK keeps initial focus so ignoring it costs nothing. */
+@Composable
+private fun SlotNameField(value: String, onValueChange: (String) -> Unit, onDone: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(10.dp)
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = TextStyle(
+            fontFamily = FontFamily.SansSerif,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 20.sp,
+            color = FeuColors.GiWhite
+        ),
+        cursorBrush = SolidColor(FeuColors.CrownGold),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onDone() }),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .onFocusChanged { focused = it.isFocused },
+        decorationBox = { inner ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(FeuColors.CardSurfaceHover)
+                    .border(2.dp, if (focused) FeuColors.CrownGold else FeuColors.HairlineStrong, shape)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = stringResource(id = R.string.save_name_hint),
+                        style = TextStyle(
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = FeuColors.TextFaint
+                        )
+                    )
+                }
+                inner()
+            }
+        }
+    )
 }
 
 @Composable

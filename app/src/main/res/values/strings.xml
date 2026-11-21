@@ -91,6 +91,7 @@
     <string name="quick_rest_label">Descanso</string>
     <string name="quick_rest_none">Sem</string>
     <string name="save_dialog_title">Guardar na predefinição %1$d?</string>
+    <string name="save_name_hint">Nome (opcional)</string>
     <string name="save_dialog_hint">Substitui a predefinição atual pelos valores novos.</string>
     <string name="save_ok">Guardar</string>
     <string name="save_cancel">Cancelar</string>

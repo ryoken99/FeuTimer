@@ -8,6 +8,7 @@ import pt.feubjj.timer.domain.model.QuickTimerOptions
 import pt.feubjj.timer.domain.model.RoundConfig
 import pt.feubjj.timer.domain.model.SoundPreferences
 import pt.feubjj.timer.domain.presets.PresetCatalog
+import pt.feubjj.timer.domain.presets.PresetNames
 import pt.feubjj.timer.domain.presets.RoundPresetOption
 
 /**
@@ -25,7 +26,7 @@ interface TimerStorage {
     fun saveLastSession(config: RoundConfig)
 
     fun loadPresetSlots(): List<RoundPresetOption>
-    fun savePresetSlot(index: Int, config: RoundConfig)
+    fun savePresetSlot(index: Int, config: RoundConfig, name: String? = null)
     fun resetPresetSlots()
 
     fun loadLocaleOverride(): String?
@@ -69,9 +70,13 @@ class InMemoryTimerStorage(
 
     override fun loadPresetSlots(): List<RoundPresetOption> = presetSlots.toList()
 
-    override fun savePresetSlot(index: Int, config: RoundConfig) {
+    override fun savePresetSlot(index: Int, config: RoundConfig, name: String?) {
         if (index !in presetSlots.indices) return
-        presetSlots[index] = presetSlots[index].copy(config = config, isCustomized = true)
+        presetSlots[index] = presetSlots[index].copy(
+            config = config,
+            isCustomized = true,
+            customName = PresetNames.clean(name)
+        )
     }
 
     override fun resetPresetSlots() {
@@ -186,15 +191,18 @@ class SharedPreferencesTimerStorage(context: Context) : TimerStorage {
                         workSeconds = prefs.getLong(workKey, defaultPreset.config.workSeconds),
                         restSeconds = prefs.getLong("slot_${idx}_rest", defaultPreset.config.restSeconds)
                     ),
-                    isCustomized = true
+                    isCustomized = true,
+                    customName = PresetNames.clean(prefs.getString("slot_${idx}_name", null))
                 )
             }
         }
     }
 
-    override fun savePresetSlot(index: Int, config: RoundConfig) {
+    override fun savePresetSlot(index: Int, config: RoundConfig, name: String?) {
         if (index !in 0..3) return
+        val cleanName = PresetNames.clean(name)
         prefs.edit()
+            .apply { if (cleanName == null) remove("slot_${index}_name") else putString("slot_${index}_name", cleanName) }
             .putInt("slot_${index}_repeat", config.repeat)
             .putLong("slot_${index}_work", config.workSeconds)
             .putLong("slot_${index}_rest", config.restSeconds)
@@ -207,6 +215,7 @@ class SharedPreferencesTimerStorage(context: Context) : TimerStorage {
             editor.remove("slot_${idx}_repeat")
             editor.remove("slot_${idx}_work")
             editor.remove("slot_${idx}_rest")
+            editor.remove("slot_${idx}_name")
         }
         editor.apply()
     }

@@ -14,7 +14,9 @@ data class RoundPresetOption(
     val id: String,
     val titleKey: String,
     val config: RoundConfig,
-    val isCustomized: Boolean = false
+    val isCustomized: Boolean = false,
+    /** Optional coach-chosen name; blank/null falls back to the built-in title. */
+    val customName: String? = null
 )
 
 /**

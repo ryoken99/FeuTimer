@@ -4,6 +4,7 @@ package pt.feubjj.timer.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.width
@@ -109,6 +110,8 @@ fun RoundsScreen(
     var previewSlot by remember { mutableStateOf<Int?>(null) }
     var pendingSaveSlot by remember { mutableStateOf<Int?>(null) }
     var savedSlot by remember { mutableStateOf<Int?>(null) }
+    var popupSlot by remember { mutableIntStateOf(0) }
+    LaunchedEffect(previewSlot) { previewSlot?.let { popupSlot = it } }
     LaunchedEffect(savedSlot) {
         if (savedSlot != null) {
             delay(2200L)
@@ -210,6 +213,22 @@ fun RoundsScreen(
         }
     }
 
+    // The saved cards live on another tab, so hovering a Guardar number fades in this popup: which preset changes + what changes
+    AnimatedVisibility(
+        visible = section == RoundSection.CUSTOM && previewSlot != null && pendingSaveSlot == null,
+        enter = fadeIn(animationSpec = tween(durationMillis = 180)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 140)),
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(start = 36.dp, bottom = 74.dp)
+    ) {
+        SlotPreviewPopup(
+            slotNumber = popupSlot + 1,
+            preset = presetSlots[popupSlot.coerceIn(0, presetSlots.lastIndex)],
+            after = builderConfig
+        )
+    }
+
     pendingSaveSlot?.let { slot ->
         SaveSlotDialog(
             slotNumber = slot + 1,
@@ -279,6 +298,89 @@ private fun TemplateGrid(firstFocus: FocusRequester, onLoad: (RoundConfig) -> Un
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun presetTitleText(preset: RoundPresetOption): String = when (preset.titleKey) {
+    "preset_adult" -> stringResource(id = R.string.preset_adult)
+    "preset_comp" -> stringResource(id = R.string.preset_comp)
+    "preset_specific" -> stringResource(id = R.string.preset_specific)
+    else -> stringResource(id = R.string.preset_kids_drills)
+}
+
+/** Non-interactive card that shows which preset slot would be overwritten and each value's before -> after. */
+@Composable
+private fun SlotPreviewPopup(slotNumber: Int, preset: RoundPresetOption, after: RoundConfig) {
+    val oldM = metricTextsOf(preset.config)
+    val newM = metricTextsOf(after)
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier
+            .width(470.dp)
+            .clip(shape)
+            .background(Color(0xF2151313))
+            .border(2.dp, FeuColors.CrownGold, shape)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "$slotNumber · ${presetTitleText(preset).uppercase()}",
+            maxLines = 1,
+            style = FeuTypography.Eyebrow.copy(
+                color = FeuColors.CrownGold,
+                fontSize = 15.sp,
+                letterSpacing = 1.2.sp
+            )
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            PopupDiffCell(stringResource(id = R.string.role_rounds), oldM.rep, newM.rep)
+            PopupDiffCell(stringResource(id = R.string.role_work), oldM.work, newM.work)
+            PopupDiffCell(stringResource(id = R.string.role_rest), oldM.rest, newM.rest)
+            PopupDiffCell("Total", oldM.total, newM.total)
+        }
+    }
+}
+
+@Composable
+private fun PopupDiffCell(label: String, old: String, new: String) {
+    val changed = old != new
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label.uppercase(),
+            maxLines = 1,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = FeuColors.GiRestIvory
+            )
+        )
+        Text(
+            text = if (changed) old else " ",
+            maxLines = 1,
+            softWrap = false,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = FeuColors.TextFaint,
+                textDecoration = TextDecoration.LineThrough,
+                fontFeatureSettings = FeuTypography.TABULAR_FEATURES
+            )
+        )
+        Text(
+            text = new,
+            maxLines = 1,
+            softWrap = false,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                color = if (changed) FeuColors.CrownGold else FeuColors.GiWhite,
+                fontFeatureSettings = FeuTypography.TABULAR_FEATURES
+            )
+        )
     }
 }
 
@@ -431,12 +533,7 @@ private fun PresetRoundCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val titleText = when (preset.titleKey) {
-        "preset_adult" -> stringResource(id = R.string.preset_adult)
-        "preset_comp" -> stringResource(id = R.string.preset_comp)
-        "preset_specific" -> stringResource(id = R.string.preset_specific)
-        else -> stringResource(id = R.string.preset_kids_drills)
-    }
+    val titleText = presetTitleText(preset)
     // While a Guardar number is focused, this card shows what it WOULD become (old value struck through above)
     val shownConfig = previewConfig ?: preset.config
     val repStr = if (shownConfig.isEndless) "∞" else shownConfig.repeat.toString()

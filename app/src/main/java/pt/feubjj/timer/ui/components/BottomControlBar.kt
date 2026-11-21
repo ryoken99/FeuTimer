@@ -219,6 +219,8 @@ fun BottomControlBar(
                     inactiveIcon = Icons.AutoMirrored.Rounded.VolumeOff,
                     onClick = onToggleVoice
                 )
+            }
+            if (screen == TvScreen.CLOCK) {
                 CircularMediaIconButton(
                     icon = Icons.Rounded.Settings,
                     contentDescription = stringResource(id = R.string.nav_settings),

@@ -1152,6 +1152,7 @@
     if (state.screen === 'CLOCK') {
       left.push({ id: 'open_rounds', label: I18n.t(L, 'nav_rounds'), kind: 'pill-primary' });
       left.push({ id: 'open_scoreboard', label: I18n.t(L, 'nav_scoreboard'), kind: 'pill-primary' });
+      right.push({ id: 'open_settings', label: '⚙ ' + I18n.t(L, 'nav_settings'), kind: 'option' });
     } else if (state.screen === 'ACTIVE_TIMER') {
       left.push({ id: 'back_clock', label: '◀', kind: 'circle' });
       if (state.timer.phase !== 'FINISHED') {
@@ -1167,9 +1168,6 @@
       }
     } else {
       left.push({ id: 'back_clock', label: '◀', kind: 'circle' });
-      if (state.screen === 'ROUNDS' || state.screen === 'SCOREBOARD') {
-        right.push({ id: 'open_settings', label: '⚙ ' + I18n.t(L, 'nav_settings'), kind: 'option' });
-      }
       if (state.screen === 'SETTINGS') {
         right.push({ id: 'download_update', label: I18n.t(L, 'nav_update'), kind: 'option' });
       }

@@ -1232,7 +1232,7 @@
     setHtml(
       els.bottomRight,
       model.right.map((item, rIdx) => renderBarItem(item, model.left.length + rIdx)).join('') +
-        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.6</span>`
+        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.7</span>`
     );
   }
 

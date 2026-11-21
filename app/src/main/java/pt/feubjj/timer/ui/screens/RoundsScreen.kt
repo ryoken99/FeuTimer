@@ -122,6 +122,17 @@ fun RoundsScreen(
     var savedSlot by remember { mutableStateOf<Int?>(null) }
     var popupSlot by remember { mutableIntStateOf(0) }
     LaunchedEffect(previewSlot) { previewSlot?.let { popupSlot = it } }
+    // After a save, leave the Guardar row: drop the preview popup and hand focus to Play so the next click starts the session.
+    // Retried once because the closing dialog restores focus to the Guardar number a moment after it is dismissed.
+    LaunchedEffect(savedSlot) {
+        if (savedSlot != null) {
+            repeat(2) {
+                previewSlot = null
+                runCatching { playFocus.requestFocus() }
+                delay(160L)
+            }
+        }
+    }
     LaunchedEffect(savedSlot) {
         if (savedSlot != null) {
             delay(2200L)

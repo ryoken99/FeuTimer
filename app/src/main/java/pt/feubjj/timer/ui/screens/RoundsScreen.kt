@@ -105,6 +105,9 @@ fun RoundsScreen(
     var section by remember { mutableStateOf(RoundSection.SAVED) }
     val tabFocus = remember { RoundSection.entries.associateWith { FocusRequester() } }
     var enterPanel by remember { mutableIntStateOf(0) }
+    var workoutPage by remember { mutableIntStateOf(0) }
+    val pageCount = (presetSlots.size + 7) / 8
+    val page = workoutPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
     val firstPresetFocus = remember { FocusRequester() }
     // Explicit focus targets so +1m/-1m tags go DOWN to their own stepper, and the rightmost card goes RIGHT to Play
     val repeatMinusFocus = remember { FocusRequester() }
@@ -177,29 +180,45 @@ fun RoundsScreen(
                     modifier = Modifier.focusRequester(tabFocus.getValue(tab))
                 )
             }
-        }
-        Spacer(Modifier.height(16.dp))
-        when (section) {
-            RoundSection.SAVED -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (section == RoundSection.SAVED) {
+                Spacer(Modifier.weight(1f))
                 OptionPill(stringResource(R.string.create_workout), false, onClick = {
                     section = RoundSection.CREATE
                     enterPanel++
                 })
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                ) {
-                    presetSlots.forEachIndexed { index, preset ->
-                        PresetRoundCard(
-                            slotNumber = index + 1,
-                            preset = preset,
-                            previewConfig = if (previewSlot == index) builderConfig else null,
-                            savedFlash = savedSlot == index,
-                            onClick = { onSelectPreset(preset.config) },
-                            modifier = Modifier
-                                .width(212.dp)
-                                .then(if (index == 0) Modifier.focusRequester(firstPresetFocus) else Modifier)
-                        )
+                if (pageCount > 1) {
+                    OptionPill("◀", false, onClick = {
+                        workoutPage = (page + pageCount - 1) % pageCount
+                        enterPanel++
+                    })
+                    Text("${page + 1} / $pageCount", color = FeuColors.GiWhite, modifier = Modifier.align(Alignment.CenterVertically))
+                    OptionPill("▶", false, onClick = {
+                        workoutPage = (page + 1) % pageCount
+                        enterPanel++
+                    })
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        when (section) {
+            RoundSection.SAVED -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                presetSlots.drop(page * 8).take(8).chunked(4).forEachIndexed { row, presets ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        presets.forEachIndexed { col, preset ->
+                            val position = row * 4 + col
+                            val index = page * 8 + position
+                            PresetRoundCard(
+                                slotNumber = index + 1,
+                                preset = preset,
+                                previewConfig = if (previewSlot == index) builderConfig else null,
+                                savedFlash = savedSlot == index,
+                                onClick = { onSelectPreset(preset.config) },
+                                modifier = Modifier.weight(1f).then(
+                                    if (position == 0) Modifier.focusRequester(firstPresetFocus) else Modifier
+                                )
+                            )
+                        }
+                        repeat(4 - presets.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -289,6 +308,7 @@ fun RoundsScreen(
                 pendingSaveSlot = null
                 savedSlot = slot
                 if (slot >= presetSlots.size) {
+                    workoutPage = slot / 8
                     section = RoundSection.SAVED
                     enterPanel++
                 } else leaveSaveFlowTick++
@@ -678,7 +698,7 @@ private fun PresetRoundCard(
         glowColor = FeuColors.FeuRed,
         pulse = previewConfig != null || savedFlash,
         pulseColor = if (previewConfig == null && savedFlash) FeuColors.RestEmerald else FeuColors.CrownGold,
-        modifier = modifier.height(138.dp)
+        modifier = modifier.height(114.dp)
     ) { _ ->
         Column(
             modifier = Modifier
@@ -761,9 +781,8 @@ private fun MetricCell(
     oldText: String? = null
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        // Reserved row so the layout never jumps when the before/after preview appears
-        Text(
-            text = oldText ?: " ",
+        if (oldText != null) Text(
+            text = oldText,
             maxLines = 1,
             softWrap = false,
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -784,7 +803,7 @@ private fun MetricCell(
                 style = TextStyle(
                     fontFamily = FontFamily.SansSerif,
                     fontWeight = FontWeight.Black,
-                    fontSize = 27.sp,
+                    fontSize = 25.sp,
                     fontFeatureSettings = FeuTypography.TABULAR_FEATURES,
                     color = if (oldText != null) FeuColors.CrownGold else FeuColors.GiWhite
                 )

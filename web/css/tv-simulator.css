@@ -1438,13 +1438,19 @@ body.is-tv-only .floating-tv-toggle {
 .rounds-preview .total-frame-box { margin-right: auto; width: auto; padding: 0 16px; }
 .rounds-preview .save-slots-row { gap: 8px; }
 .rounds-preview .mini-tag { min-width: 34px; height: 31px; }
-.rounds-preview .preset-card { height: 155px; }
+
 
 .slot-preview { pointer-events: none; backdrop-filter: blur(3px); }
 .slot-name { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .slot-name input { min-width: 0; flex: 1; color: var(--gi-white); }
 
 .create-workout { align-self: flex-start; }
-.rounds-preview .presets-row { display: flex; overflow-x: auto; padding: 4px; }
-.rounds-preview .preset-card { flex: 0 0 calc((100% - 30px) / 4); }
+.rounds-preview .presets-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rounds-preview .preset-card { height: 110px; min-width: 0; padding: 6px 9px; }
+.rounds-preview .metric-old:empty { display: none; }
+.rounds-preview .metric-val { font-size: 24px; }
+.workout-toolbar, #workout-pages { display: flex; align-items: center; gap: 8px; }
+.workout-toolbar .round-sections { flex: 1; border: 0; padding: 0; }
+.workout-toolbar .create-workout { align-self: center; }
+.rounds-wrap:not([data-section="presets"]) #workout-pages, #workout-pages:empty { display: none; }
 .rounds-preview .save-slots-row { max-width: 42%; overflow-x: auto; }

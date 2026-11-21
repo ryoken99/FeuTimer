@@ -14,6 +14,8 @@
 
   const roundSections = ['presets', 'builder'];
   let roundSection = 'presets';
+  let workoutPage = 0;
+  const workoutsPerPage = 8;
 
   function loadPersisted() {
     try {
@@ -526,7 +528,8 @@
       if (title.textContent !== label) title.textContent = label;
       setHtml(popup.querySelector('.modal-body'), diffRows(L, metricsOf(preset), next));
     }
-    els.presetsRow.querySelectorAll('.preset-card').forEach((card, idx) => {
+    els.presetsRow.querySelectorAll('.preset-card').forEach((card) => {
+      const idx = Number(card.dataset.presetIdx);
       const target = idx === slot;
       card.classList.toggle('is-save-target', target);
       const cur = metricsOf(state.presetSlots[idx]);
@@ -625,9 +628,12 @@
     };
     persistSettings();
     closeModal();
-    if (isNew) roundSection = 'presets';
+    if (isNew) {
+      roundSection = 'presets';
+      workoutPage = Math.floor(idx / workoutsPerPage);
+    }
     renderRoundsScreen();
-    const card = els.presetsRow.querySelectorAll('.preset-card')[idx];
+    const card = els.presetsRow.querySelector(`[data-preset-idx="${idx}"]`);
     if (card) {
       if (isNew) applyDomFocus(card);
       card.classList.add('is-saved-flash');
@@ -857,8 +863,16 @@
       ).join(''));
     }
     document.querySelector('[data-create-workout]').textContent = I18n.t(L, 'create_workout');
-    setHtml(els.presetsRow, state.presetSlots
-      .map((p, idx) => {
+    const pages = Math.ceil(state.presetSlots.length / workoutsPerPage);
+    workoutPage = Math.max(0, Math.min(workoutPage, pages - 1));
+    setHtml(document.getElementById('workout-pages'), pages <= 1 ? '' :
+      `<button class="tv-focusable opt-pill" data-page-step="-1" aria-label="${I18n.t(L,'prev_page')}">◀</button>
+       <span>${workoutPage + 1} / ${pages}</span>
+       <button class="tv-focusable opt-pill" data-page-step="1" aria-label="${I18n.t(L,'next_page')}">▶</button>`);
+    const start = workoutPage * workoutsPerPage;
+    setHtml(els.presetsRow, state.presetSlots.slice(start, start + workoutsPerPage)
+      .map((p, position) => {
+        const idx = start + position;
         const focused = false;
         const repStr = p.repeat === -1 ? '∞' : p.repeat;
         const w = TimeFormatter.displayValueAndUnit(p.workSeconds);
@@ -1390,9 +1404,6 @@
       return;
     }
     target.classList.add('is-dpad-focused');
-    if (target.closest('.presets-row')) {
-      target.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-    }
     updateSavePreview();
     focusSig = signatureOf(target);
     focusScreen = state.screen;
@@ -1502,6 +1513,14 @@
       if (clickedFocusable) applyDomFocus(clickedFocusable);
       if (ev.target.closest('.lan-banner')) return;
 
+      const pageButton = ev.target.closest('[data-page-step]');
+      if (pageButton) {
+        const pages = Math.ceil(state.presetSlots.length / workoutsPerPage);
+        workoutPage = (workoutPage + Number(pageButton.dataset.pageStep) + pages) % pages;
+        renderRoundsScreen();
+        applyDomFocus(els.presetsRow.querySelector('.preset-card'));
+        return;
+      }
       if (ev.target.closest('[data-create-workout]')) {
         roundSection = 'create';
         renderRoundsScreen();

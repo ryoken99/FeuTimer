@@ -51,9 +51,7 @@ class MainActivity : ComponentActivity() {
             RemoteGlobalAction.BACK -> {
                 if (keyCode != KeyEvent.KEYCODE_BACK) {
                     // ESCAPE (USB / CEC remotes) and BUTTON_B (gamepads) route through Back navigation
-                    if (!timerViewModel.controller.onBackPressed()) {
-                        finish()
-                    }
+                    onBackPressedDispatcher.onBackPressed()
                     return true
                 }
             }

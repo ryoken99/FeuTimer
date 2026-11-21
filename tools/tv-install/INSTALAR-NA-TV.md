@@ -1,4 +1,4 @@
-# FeuTimer 1.3.6 para Android TV
+# FeuTimer 1.3.7 para Android TV
 
 O ficheiro FeuTimer-AndroidTV.apk instala a aplicação na Android TV, Google TV ou box Android com Android 6 ou posterior. Uma pen USB e um gestor de ficheiros na TV são suficientes. O repositório GitHub é privado. Inicia sessão com uma conta que tenha acesso para descarregar os ficheiros.
 
@@ -21,7 +21,7 @@ O ficheiro FeuTimer-AndroidTV.apk instala a aplicação na Android TV, Google TV
 
 ## Atualizações e assinaturas
 
-A v1.3.6 usa o mesmo identificador e o mesmo certificado da v1.3.5 publicada neste repositório. Foi testada a atualização direta entre esses dois APKs. A v1.3.4 do ZIP original tem outro certificado. Se o Android indicar conflito de assinatura, interrompe a instalação e conserva a aplicação existente. Uma desinstalação pode apagar predefinições e resultados.
+A v1.3.7 usa o mesmo identificador e o mesmo certificado das versões 1.3.5 e 1.3.6 publicadas neste repositório. A atualização direta da v1.3.6 para a v1.3.7 foi testada num emulador Android TV. A v1.3.4 do ZIP original tem outro certificado. Se o Android indicar conflito de assinatura, interrompe a instalação e conserva a aplicação existente. Uma desinstalação pode apagar predefinições e resultados.
 
 Na TV, **Definições → Atualizar** abre o APK da versão estável mais recente através do navegador. A transferência de um repositório privado requer uma sessão GitHub autorizada. Abre o APK transferido, confirma a instalação no Android e escolhe **Abrir**. Em TVs sem navegador, usa a pen ou o instalador por ADB. O reinício automático do simulador é uma função do lançador de PC.
 

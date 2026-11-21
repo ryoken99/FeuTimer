@@ -1439,3 +1439,7 @@ body.is-tv-only .floating-tv-toggle {
 .rounds-preview .save-slots-row { gap: 8px; }
 .rounds-preview .mini-tag { min-width: 34px; height: 31px; }
 .rounds-preview .preset-card { height: 155px; }
+
+.slot-preview { pointer-events: none; backdrop-filter: blur(3px); }
+.slot-name { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.slot-name input { min-width: 0; flex: 1; color: var(--gi-white); }

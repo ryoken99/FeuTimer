@@ -519,6 +519,15 @@
     const L = state.locale;
     const slot = currentSavePreviewSlot();
     const next = metricsOf(state.customBuilder);
+    const popup = document.getElementById('slot-preview');
+    popup.hidden = slot == null || !roundsPreview || roundSection !== 'builder';
+    if (!popup.hidden) {
+      const preset = state.presetSlots[slot];
+      const title = popup.querySelector('h3');
+      const label = (slot + 1) + ' · ' + (preset.customName || I18n.t(L, preset.titleKey));
+      if (title.textContent !== label) title.textContent = label;
+      setHtml(popup.querySelector('.modal-body'), diffRows(L, metricsOf(preset), next));
+    }
     els.presetsRow.querySelectorAll('.preset-card').forEach((card, idx) => {
       const target = idx === slot;
       card.classList.toggle('is-save-target', target);
@@ -563,33 +572,41 @@
     return Boolean(m && !m.hidden);
   }
 
+  function diffRows(L, cur, next) {
+    const row = (label, k) => `<div class="diff-row"><span class="diff-label">${label}</span><span class="diff-old${cur[k].val !== next[k].val || cur[k].unit !== next[k].unit ? '' : ' is-same'}">${`${cur[k].val} ${cur[k].unit}`.trim()}</span><span class="diff-arrow">→</span><span class="diff-new${cur[k].val !== next[k].val || cur[k].unit !== next[k].unit ? ' is-changed' : ''}">${`${next[k].val} ${next[k].unit}`.trim()}</span></div>`;
+    return row(I18n.t(L, 'role_rounds'), 'rep') + row(I18n.t(L, 'role_work'), 'work') +
+      row(I18n.t(L, 'role_rest'), 'rest') + row('Total', 'total');
+  }
+
   function openSaveDialog(slotIdx) {
     const L = state.locale;
     const cur = metricsOf(state.presetSlots[slotIdx]);
     const next = metricsOf(state.customBuilder);
     state.pendingSaveSlot = slotIdx;
-    state.returnFocusSig = focusSig; // dialog closes back onto the Guardar button that opened it
     document.getElementById('modal-title').textContent = I18n.t(L, 'save_dialog_title', { slot: slotIdx + 1 });
-    const row = (label, k) => `<div class="diff-row"><span class="diff-label">${label}</span><span class="diff-old${cur[k].val !== next[k].val || cur[k].unit !== next[k].unit ? '' : ' is-same'}">${`${cur[k].val} ${cur[k].unit}`.trim()}</span><span class="diff-arrow">→</span><span class="diff-new${cur[k].val !== next[k].val || cur[k].unit !== next[k].unit ? ' is-changed' : ''}">${`${next[k].val} ${next[k].unit}`.trim()}</span></div>`;
-    document.getElementById('modal-body').innerHTML =
-      row(I18n.t(L, 'role_rounds'), 'rep') + row(I18n.t(L, 'role_work'), 'work') + row(I18n.t(L, 'role_rest'), 'rest') + row('Total', 'total') +
+    document.getElementById('modal-body').innerHTML = diffRows(L, cur, next) +
       `<div class="modal-hint">${I18n.t(L, 'save_dialog_hint')}</div>`;
+    document.getElementById('slot-name-label').textContent = I18n.t(L, 'save_name');
+    document.getElementById('slot-name').value = state.presetSlots[slotIdx].customName || '';
     document.getElementById('modal-ok').textContent = I18n.t(L, 'save_ok');
     document.getElementById('modal-cancel').textContent = I18n.t(L, 'save_cancel');
     document.getElementById('modal-layer').hidden = false;
     updateSavePreview();
-    focusSig = null;
-    restoreDomFocus();
+    applyDomFocus(document.getElementById('modal-ok'));
   }
 
   function closeModal() {
     const m = document.getElementById('modal-layer');
     if (m) m.hidden = true;
     state.pendingSaveSlot = null;
-    focusSig = state.returnFocusSig || null;
-    focusScreen = state.screen;
-    restoreDomFocus();
-    updateSavePreview();
+    leaveSaveFlow();
+  }
+
+  function leaveSaveFlow() {
+    hoverSaveSlot = null;
+    document.getElementById('slot-name').blur();
+    document.body.classList.add('dpad-mode');
+    applyDomFocus(els.builderRow.querySelector('[data-builder-idx="10"]'));
   }
 
   function showToast(text, kind) {
@@ -608,6 +625,7 @@
     if (idx == null) return closeModal();
     state.presetSlots[idx] = {
       ...state.presetSlots[idx],
+      customName: document.getElementById('slot-name').value.trim().slice(0, 14),
       repeat: state.customBuilder.repeat,
       workSeconds: state.customBuilder.workSeconds,
       restSeconds: state.customBuilder.restSeconds,
@@ -628,8 +646,8 @@
       closeModal();
       return;
     }
-    if (roundsPreview && state.screen === 'ROUNDS' && !els.viewport.querySelector('[data-round-section].is-dpad-focused')) {
-      applyDomFocus(els.viewport.querySelector(`[data-round-section="${roundSection}"]`));
+    if (!document.getElementById('slot-preview').hidden) {
+      leaveSaveFlow();
       return;
     }
     if (state.screen !== 'CLOCK') {
@@ -848,7 +866,7 @@
 
         return `
           <button type="button" class="tv-focusable preset-card${focused ? ' is-dpad-focused' : ''}" data-preset-idx="${idx}">
-            <div class="preset-card__title">${idx + 1} · ${I18n.t(L, p.titleKey)}</div>
+            <div class="preset-card__title">${idx + 1} · ${escapeHtml(p.customName || I18n.t(L, p.titleKey))}</div>
             <div class="preset-card__metrics">
               <div class="metric-cell">
                 <span class="metric-old" data-old="rep"></span>
@@ -1434,7 +1452,8 @@
       restoreDomFocus();
       el = els.viewport.querySelector('.is-dpad-focused');
     }
-    if (el) el.click();
+    if (el?.id === 'slot-name') el.focus();
+    else if (el) el.click();
   }
 
   window.FEU_TIMER.__focusProbe = () => {
@@ -1703,7 +1722,15 @@
     });
 
     window.addEventListener('keydown', (ev) => {
-      if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.isComposing) return;
+      if (ev.target.id === 'slot-name') {
+        if (ev.key === 'Enter' || ev.key === 'ArrowDown') {
+          ev.preventDefault();
+          ev.target.blur();
+          applyDomFocus(document.getElementById('modal-ok'));
+        } else if (ev.key === 'Escape') { ev.preventDefault(); closeModal(); }
+        return;
+      }
       if (ev.key === 'ArrowUp') { ev.preventDefault(); handleDpadDirection('up'); }
       else if (ev.key === 'ArrowDown') { ev.preventDefault(); handleDpadDirection('down'); }
       else if (ev.key === 'ArrowLeft') { ev.preventDefault(); handleDpadDirection('left'); }

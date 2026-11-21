@@ -2,6 +2,8 @@
 
 package pt.feubjj.timer.ui.screens
 
+import android.view.KeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -477,6 +479,15 @@ private fun SaveSlotDialog(
         val shape = RoundedCornerShape(18.dp)
         Column(
             modifier = Modifier
+                .onPreviewKeyEvent { event ->
+                    val key = event.nativeKeyEvent
+                    if (key.keyCode != KeyEvent.KEYCODE_ESCAPE && key.keyCode != KeyEvent.KEYCODE_BUTTON_B) {
+                        false
+                    } else {
+                        if (key.action == KeyEvent.ACTION_UP && !key.isCanceled) onCancel()
+                        true
+                    }
+                }
                 .width(520.dp)
                 .clip(shape)
                 .background(Color(0xFF151313))

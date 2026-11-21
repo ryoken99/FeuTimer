@@ -94,10 +94,16 @@
           <div id="bottom-right" class="bar-group"></div>
         </footer>
         <!-- Confirm dialog (OK / Cancel) + completion toast, both inside the scaled 960x540 stage -->
+        <div id="slot-preview" class="modal-layer slot-preview" hidden aria-live="polite">
+          <div class="modal-card"><h3 class="modal-title"></h3><div class="modal-body"></div></div>
+        </div>
         <div id="modal-layer" class="modal-layer" hidden>
           <div class="modal-card" role="dialog" aria-modal="true">
             <h3 id="modal-title" class="modal-title"></h3>
             <div id="modal-body" class="modal-body"></div>
+            <label class="slot-name"><span id="slot-name-label"></span>
+              <input id="slot-name" class="tv-focusable opt-pill" maxlength="14" autocomplete="off" />
+            </label>
             <div class="modal-actions">
               <button type="button" id="modal-ok" class="tv-focusable modal-btn modal-btn--ok" data-modal-act="ok"></button>
               <button type="button" id="modal-cancel" class="tv-focusable modal-btn" data-modal-act="cancel"></button>

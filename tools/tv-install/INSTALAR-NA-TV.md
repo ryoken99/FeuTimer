@@ -1,4 +1,4 @@
-# FeuTimer 1.3.7 para Android TV
+# FeuTimer 1.3.8 para Android TV
 
 O ficheiro FeuTimer-AndroidTV.apk instala a aplicação na Android TV, Google TV ou box Android com Android 6 ou posterior. Uma pen USB e um gestor de ficheiros na TV são suficientes. O repositório GitHub é privado. Inicia sessão com uma conta que tenha acesso para descarregar os ficheiros.
 
@@ -8,7 +8,7 @@ O ficheiro FeuTimer-AndroidTV.apk instala a aplicação na Android TV, Google TV
 2. Copia FeuTimer-AndroidTV.apk para uma pen USB e liga-a à TV.
 3. No gestor de ficheiros da TV, abre o APK. Se o Android pedir autorização, permite a instalação de aplicações desta origem para esse gestor e volta ao APK.
 4. Escolhe **Instalar** ou **Atualizar**. No fim, escolhe **Abrir**. A aplicação também aparece na lista de aplicações como FEU BJJ Cronómetro.
-5. No relógio inicial, escolhe **Rondas**. Usa as setas e OK para escolher **Treinos guardados**, **Personalizar** ou **Modelos**. Escolher um modelo carrega os valores e coloca o foco em iniciar.
+5. No menu inicial, escolhe **Treino** ou **Competição**. Em **Treino → Treinos guardados → Criar treino**, define as rondas, a luta e o descanso e escolhe **Guardar** para acrescentar um treino. Para uma sessão imediata, abre **Treino → Temporizador personalizado**. O placar está em **Competição**.
 
 ## Instalação pelo Windows com ADB
 
@@ -21,7 +21,7 @@ O ficheiro FeuTimer-AndroidTV.apk instala a aplicação na Android TV, Google TV
 
 ## Atualizações e assinaturas
 
-A v1.3.7 usa o mesmo identificador e o mesmo certificado das versões 1.3.5 e 1.3.6 publicadas neste repositório. A atualização direta da v1.3.6 para a v1.3.7 foi testada num emulador Android TV. A v1.3.4 do ZIP original tem outro certificado. Se o Android indicar conflito de assinatura, interrompe a instalação e conserva a aplicação existente. Uma desinstalação pode apagar predefinições e resultados.
+A v1.3.8 usa o mesmo identificador e o mesmo certificado das versões 1.3.5, 1.3.6 e 1.3.7 publicadas neste repositório. A atualização direta da v1.3.7 para a v1.3.8 foi testada num emulador Android TV. A v1.3.4 do ZIP original tem outro certificado. Se o Android indicar conflito de assinatura, interrompe a instalação e conserva a aplicação existente. Uma desinstalação pode apagar predefinições e resultados.
 
 Na TV, **Definições → Atualizar** abre o APK da versão estável mais recente através do navegador. A transferência de um repositório privado requer uma sessão GitHub autorizada. Abre o APK transferido, confirma a instalação no Android e escolhe **Abrir**. Em TVs sem navegador, usa a pen ou o instalador por ADB. O reinício automático do simulador é uma função do lançador de PC.
 

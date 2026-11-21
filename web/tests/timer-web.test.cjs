@@ -117,7 +117,7 @@ test('DpadGrid wraps focus left/right across the 3x5 quick-timer matrix and step
 test('I18n provides complete hand-written pt-PT, en, and es dictionaries', () => {
   assert.equal(I18n.t('pt-PT', 'phase_prep', { count: 3 }), 'PREPARA-TE · 3');
   assert.equal(I18n.t('en', 'phase_fight_go'), 'FIGHT!');
-  assert.equal(I18n.t('es', 'nav_rounds'), 'Rondas');
+  assert.equal(I18n.t('es', 'nav_rounds'), 'Entrenamiento');
 });
 
 test("Spatial D-pad never traps focus: every control reachable and a lone Back button escapes on all 4 arrows", () => {

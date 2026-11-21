@@ -71,6 +71,9 @@ class InMemoryTimerStorage(
     override fun loadPresetSlots(): List<RoundPresetOption> = presetSlots.toList()
 
     override fun savePresetSlot(index: Int, config: RoundConfig, name: String?) {
+        if (index == presetSlots.size) {
+            presetSlots.add(RoundPresetOption("workout_$index", "new_workout", config))
+        }
         if (index !in presetSlots.indices) return
         presetSlots[index] = presetSlots[index].copy(
             config = config,
@@ -180,7 +183,10 @@ class SharedPreferencesTimerStorage(context: Context) : TimerStorage {
     }
 
     override fun loadPresetSlots(): List<RoundPresetOption> {
-        return PresetCatalog.coreRoundPresets.mapIndexed { idx, defaultPreset ->
+        val defaults = PresetCatalog.coreRoundPresets
+        return List(prefs.getInt("workout_count", defaults.size)) { idx ->
+            val defaultPreset = defaults.getOrNull(idx)
+                ?: RoundPresetOption("workout_$idx", "new_workout", defaults.first().config)
             val workKey = "slot_${idx}_work"
             if (!prefs.contains(workKey)) {
                 defaultPreset
@@ -199,9 +205,11 @@ class SharedPreferencesTimerStorage(context: Context) : TimerStorage {
     }
 
     override fun savePresetSlot(index: Int, config: RoundConfig, name: String?) {
-        if (index !in 0..3) return
+        val count = prefs.getInt("workout_count", PresetCatalog.coreRoundPresets.size)
+        if (index !in 0..count) return
         val cleanName = PresetNames.clean(name)
         prefs.edit()
+            .putInt("workout_count", maxOf(count, index + 1))
             .apply { if (cleanName == null) remove("slot_${index}_name") else putString("slot_${index}_name", cleanName) }
             .putInt("slot_${index}_repeat", config.repeat)
             .putLong("slot_${index}_work", config.workSeconds)
@@ -211,7 +219,8 @@ class SharedPreferencesTimerStorage(context: Context) : TimerStorage {
 
     override fun resetPresetSlots() {
         val editor = prefs.edit()
-        for (idx in 0..3) {
+        editor.remove("workout_count")
+        for (idx in 0 until prefs.getInt("workout_count", PresetCatalog.coreRoundPresets.size)) {
             editor.remove("slot_${idx}_repeat")
             editor.remove("slot_${idx}_work")
             editor.remove("slot_${idx}_rest")

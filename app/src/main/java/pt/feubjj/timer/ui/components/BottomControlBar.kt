@@ -79,15 +79,12 @@ fun BottomControlBar(
     timerPhase: TimerPhase,
     isMultiRoundActive: Boolean,
     soundPreferences: SoundPreferences,
-    lastSessionBadge: String?,
     lanRefereeUrl: String?,
     lanConnectedClients: Int,
     savedResultsCount: Int,
-    onOpenQuickTimers: () -> Unit,
     onOpenRounds: () -> Unit,
     onOpenScoreboard: () -> Unit,
     onOpenSettings: () -> Unit,
-    onRepeatLast: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onRestartPhase: () -> Unit,
     onAdjustTime: (Long) -> Unit,
@@ -123,17 +120,11 @@ fun BottomControlBar(
             when (screen) {
                 TvScreen.CLOCK -> {
                     TvActionPill(
-                        icon = Icons.Rounded.Timer,
-                        label = stringResource(id = R.string.nav_quick_timers),
-                        isPrimary = true,
-                        onClick = onOpenQuickTimers,
-                        modifier = Modifier.focusRequester(defaultActionFocus)
-                    )
-                    TvActionPill(
                         icon = Icons.Rounded.AllInclusive,
                         label = stringResource(id = R.string.nav_rounds),
                         isPrimary = true,
-                        onClick = onOpenRounds
+                        onClick = onOpenRounds,
+                        modifier = Modifier.focusRequester(defaultActionFocus)
                     )
                     TvActionPill(
                         icon = Icons.Rounded.EmojiEvents,
@@ -141,15 +132,6 @@ fun BottomControlBar(
                         isPrimary = false,
                         onClick = onOpenScoreboard
                     )
-                    if (lastSessionBadge != null) {
-                        TvActionPill(
-                            icon = Icons.Rounded.Replay,
-                            label = lastSessionBadge,
-                            isPrimary = false,
-                            accentColor = FeuColors.CrownGold,
-                            onClick = onRepeatLast
-                        )
-                    }
                 }
 
                 TvScreen.ACTIVE_TIMER -> {
@@ -229,7 +211,7 @@ fun BottomControlBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            if (screen == TvScreen.CLOCK) {
+            if (screen == TvScreen.ROUNDS || screen == TvScreen.SCOREBOARD) {
                 SoundToggleChip(
                     label = stringResource(id = R.string.nav_voice_short),
                     enabled = soundPreferences.voiceEnabled,

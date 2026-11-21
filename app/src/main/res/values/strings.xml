@@ -7,8 +7,8 @@
 
     <!-- Primary Navigation (pt-PT, "tu" form, compact zero-cutoff labels) -->
     <string name="nav_quick_timers">Tempos</string>
-    <string name="nav_rounds">Rondas</string>
-    <string name="nav_scoreboard">Placar</string>
+    <string name="nav_rounds">Treino</string>
+    <string name="nav_scoreboard">Competição</string>
     <string name="nav_settings">Definições</string>
     <string name="nav_back_clock">Relógio</string>
     <string name="nav_pause">Pausar</string>
@@ -46,7 +46,7 @@
     <string name="custom_col_work">Tempo de Luta</string>
     <string name="custom_col_rest">Descanso</string>
     <string name="custom_start_action">Iniciar</string>
-    <string name="custom_save_slot_prefix">Guardar:</string>
+    <string name="custom_save_slot_prefix">Substituir:</string>
 
     <!-- Active Timer Phases -->
     <string name="phase_prep">PREPARA-TE · %1$d</string>
@@ -99,6 +99,8 @@
     <string name="nav_update">Atualizar</string>
     <string name="update_browser_required">Abre o GitHub num navegador para descarregar o APK.</string>
     <string name="round_section_saved">Treinos guardados</string>
-    <string name="round_section_custom">Personalizar</string>
+    <string name="round_section_custom">Temporizador personalizado</string>
     <string name="round_section_templates">Modelos</string>
+    <string name="create_workout">Criar treino</string>
+    <string name="new_workout">Novo treino</string>
 </resources>

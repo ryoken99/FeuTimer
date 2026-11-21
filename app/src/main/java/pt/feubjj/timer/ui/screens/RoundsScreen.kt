@@ -4,6 +4,8 @@ package pt.feubjj.timer.ui.screens
 
 import android.view.KeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -81,7 +83,7 @@ import pt.feubjj.timer.ui.theme.FeuTypography
 private enum class RoundSection(val label: Int) {
     SAVED(R.string.round_section_saved),
     CUSTOM(R.string.round_section_custom),
-    TEMPLATES(R.string.round_section_templates)
+    CREATE(R.string.create_workout)
 }
 
 @Composable
@@ -89,7 +91,7 @@ fun RoundsScreen(
     presetSlots: List<RoundPresetOption>,
     customBuilder: CustomRoundBuilderState,
     onSelectPreset: (RoundConfig) -> Unit,
-    onLoadTemplate: (RoundConfig) -> Unit,
+    onStopwatch: () -> Unit,
     onToggleEndless: () -> Unit,
     onAdjustRepeat: (Boolean) -> Unit,
     onAdjustWorkSmart: (Boolean) -> Unit,
@@ -102,7 +104,6 @@ fun RoundsScreen(
 ) {
     var section by remember { mutableStateOf(RoundSection.SAVED) }
     val tabFocus = remember { RoundSection.entries.associateWith { FocusRequester() } }
-    val templateFocus = remember { FocusRequester() }
     var enterPanel by remember { mutableIntStateOf(0) }
     val firstPresetFocus = remember { FocusRequester() }
     // Explicit focus targets so +1m/-1m tags go DOWN to their own stepper, and the rightmost card goes RIGHT to Play
@@ -114,8 +115,7 @@ fun RoundsScreen(
         if (enterPanel == 0) tabFocus.getValue(section).requestFocus()
         else when (section) {
             RoundSection.SAVED -> firstPresetFocus.requestFocus()
-            RoundSection.CUSTOM -> playFocus.requestFocus()
-            RoundSection.TEMPLATES -> templateFocus.requestFocus()
+            RoundSection.CUSTOM, RoundSection.CREATE -> playFocus.requestFocus()
         }
     }
 
@@ -148,7 +148,11 @@ fun RoundsScreen(
         }
     }
     val builderConfig = customBuilder.toRoundConfig()
-    val showPopup = section == RoundSection.CUSTOM && previewSlot != null && pendingSaveSlot == null
+    BackHandler(enabled = section == RoundSection.CREATE && previewSlot == null && pendingSaveSlot == null) {
+        section = RoundSection.SAVED
+        enterPanel++
+    }
+    val showPopup = section == RoundSection.CREATE && previewSlot != null && pendingSaveSlot == null
     // Everything behind the popup softly blurs (Android 12+) and always darkens, so the popup is the only thing to read
     val backdropBlur by animateDpAsState(if (showPopup) 8.dp else 0.dp, tween(200), label = "popupBlur")
     val backdropDim by animateFloatAsState(if (showPopup) 0.62f else 0f, tween(200), label = "popupDim")
@@ -162,10 +166,10 @@ fun RoundsScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RoundSection.entries.forEach { tab ->
+            listOf(RoundSection.SAVED, RoundSection.CUSTOM).forEach { tab ->
                 OptionPill(
                     label = stringResource(tab.label),
-                    selected = tab == section,
+                    selected = tab == section || (tab == RoundSection.SAVED && section == RoundSection.CREATE),
                     onClick = {
                         section = tab
                         enterPanel++
@@ -176,24 +180,30 @@ fun RoundsScreen(
         }
         Spacer(Modifier.height(16.dp))
         when (section) {
-            RoundSection.SAVED -> Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                presetSlots.forEachIndexed { index, preset ->
-                    PresetRoundCard(
-                        slotNumber = index + 1,
-                        preset = preset,
-                        previewConfig = if (previewSlot == index) builderConfig else null,
-                        savedFlash = savedSlot == index,
-                        onClick = { onSelectPreset(preset.config) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .then(if (index == 0) Modifier.focusRequester(firstPresetFocus) else Modifier)
-                    )
+            RoundSection.SAVED -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OptionPill(stringResource(R.string.create_workout), false, onClick = {
+                    section = RoundSection.CREATE
+                    enterPanel++
+                })
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                ) {
+                    presetSlots.forEachIndexed { index, preset ->
+                        PresetRoundCard(
+                            slotNumber = index + 1,
+                            preset = preset,
+                            previewConfig = if (previewSlot == index) builderConfig else null,
+                            savedFlash = savedSlot == index,
+                            onClick = { onSelectPreset(preset.config) },
+                            modifier = Modifier
+                                .width(212.dp)
+                                .then(if (index == 0) Modifier.focusRequester(firstPresetFocus) else Modifier)
+                        )
+                    }
                 }
             }
-            RoundSection.CUSTOM -> Row(
+            RoundSection.CUSTOM, RoundSection.CREATE -> Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -229,6 +239,10 @@ fun RoundsScreen(
                     modifier = Modifier.weight(1f)
                 )
                 CustomStartAndSaveColumn(
+                    slotCount = presetSlots.size,
+                    creating = section == RoundSection.CREATE,
+                    onNewWorkout = { pendingSaveSlot = presetSlots.size },
+                    onStopwatch = onStopwatch,
                     totalDurationText = customBuilder.formattedTotal,
                     onStart = onStartCustom,
                     onSaveSlot = { pendingSaveSlot = it },
@@ -239,11 +253,7 @@ fun RoundsScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
-            RoundSection.TEMPLATES -> TemplateGrid(templateFocus) {
-                onLoadTemplate(it)
-                section = RoundSection.CUSTOM
-                enterPanel++
-            }
+
         }
     }
 
@@ -271,14 +281,17 @@ fun RoundsScreen(
     pendingSaveSlot?.let { slot ->
         SaveSlotDialog(
             slotNumber = slot + 1,
-            before = presetSlots[slot].config,
+            before = presetSlots.getOrNull(slot)?.config,
             after = builderConfig,
-            initialName = presetSlots[slot].customName.orEmpty(),
+            initialName = presetSlots.getOrNull(slot)?.customName.orEmpty(),
             onConfirm = { name ->
                 onSaveToSlot(slot, name)
                 pendingSaveSlot = null
                 savedSlot = slot
-                leaveSaveFlowTick++
+                if (slot >= presetSlots.size) {
+                    section = RoundSection.SAVED
+                    enterPanel++
+                } else leaveSaveFlowTick++
             },
             onCancel = {
                 pendingSaveSlot = null
@@ -318,35 +331,8 @@ fun RoundsScreen(
 }
 
 @Composable
-private fun TemplateGrid(firstFocus: FocusRequester, onLoad: (RoundConfig) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PresetCatalog.templateLibrary.chunked(2).forEachIndexed { row, templates ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                templates.forEachIndexed { column, template ->
-                    val label = when (template.titleKey) {
-                        "tpl_open_mat" -> R.string.tpl_open_mat
-                        "tpl_endurance" -> R.string.tpl_endurance
-                        "tpl_black_belt" -> R.string.tpl_black_belt
-                        "tpl_high_pace" -> R.string.tpl_high_pace
-                        "tpl_shark_tank" -> R.string.tpl_shark_tank
-                        else -> R.string.tpl_tabata
-                    }
-                    OptionPill(
-                        label = stringResource(label),
-                        selected = false,
-                        onClick = { onLoad(template.config) },
-                        modifier = Modifier.weight(1f).then(
-                            if (row == 0 && column == 0) Modifier.focusRequester(firstFocus) else Modifier
-                        )
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun presetTitleText(preset: RoundPresetOption): String = preset.customName?.takeIf { it.isNotBlank() } ?: when (preset.titleKey) {
+    "new_workout" -> stringResource(R.string.new_workout)
     "preset_adult" -> stringResource(id = R.string.preset_adult)
     "preset_comp" -> stringResource(id = R.string.preset_comp)
     "preset_specific" -> stringResource(id = R.string.preset_specific)
@@ -385,7 +371,7 @@ private fun SlotPreviewPopup(slotNumber: Int, preset: RoundPresetOption, after: 
             )
             // Sharp mirror of the (blurred) Guardar 1-4 selector so you always see which slot you are on
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (n in 1..4) {
+                for (n in maxOf(1, slotNumber - 3)..maxOf(4, slotNumber)) {
                     val active = n == slotNumber
                     Box(
                         contentAlignment = Alignment.Center,
@@ -461,7 +447,7 @@ private fun PopupDiffCell(label: String, old: String, new: String) {
 @Composable
 private fun SaveSlotDialog(
     slotNumber: Int,
-    before: RoundConfig,
+    before: RoundConfig?,
     after: RoundConfig,
     initialName: String,
     onConfirm: (String) -> Unit,
@@ -469,7 +455,7 @@ private fun SaveSlotDialog(
 ) {
     val okFocus = remember { FocusRequester() }
     var name by remember { mutableStateOf(initialName) }
-    val oldM = metricTextsOf(before)
+    val oldM = metricTextsOf(before ?: after)
     val newM = metricTextsOf(after)
     Dialog(
         onDismissRequest = onCancel,
@@ -496,7 +482,7 @@ private fun SaveSlotDialog(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = stringResource(id = R.string.save_dialog_title, slotNumber),
+                text = if (before == null) stringResource(R.string.create_workout) else stringResource(R.string.save_dialog_title, slotNumber),
                 style = MaterialTheme.typography.headlineMedium.copy(fontSize = 26.sp, fontWeight = FontWeight.Black)
             )
             Spacer(modifier = Modifier.height(6.dp))
@@ -509,7 +495,7 @@ private fun SaveSlotDialog(
                 onValueChange = { name = it.take(PresetNames.MAX_LENGTH) },
                 onDone = { runCatching { okFocus.requestFocus() } }
             )
-            Text(
+            if (before != null) Text(
                 text = stringResource(id = R.string.save_dialog_hint),
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, color = FeuColors.TextMuted),
                 modifier = Modifier.padding(top = 4.dp)
@@ -1038,6 +1024,10 @@ private fun PlusMinusRow(
 
 @Composable
 private fun CustomStartAndSaveColumn(
+    slotCount: Int,
+    creating: Boolean,
+    onNewWorkout: () -> Unit,
+    onStopwatch: () -> Unit,
     totalDurationText: String,
     onStart: () -> Unit,
     onSaveSlot: (Int) -> Unit,
@@ -1090,7 +1080,13 @@ private fun CustomStartAndSaveColumn(
             )
         }
 
-        Row(
+        if (creating) {
+            OptionPill(stringResource(R.string.save_ok), false, onClick = onNewWorkout)
+        } else {
+            OptionPill(stringResource(R.string.phase_stopwatch), false, onClick = onStopwatch)
+        }
+        if (creating) Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
@@ -1102,7 +1098,7 @@ private fun CustomStartAndSaveColumn(
                     color = FeuColors.GiRestIvory
                 )
             )
-            for (slot in 0..3) {
+            for (slot in 0 until slotCount) {
                 MiniTagButton(
                     label = "${slot + 1}",
                     isActive = false,

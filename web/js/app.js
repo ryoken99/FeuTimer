@@ -12,9 +12,7 @@
 
   const STORAGE_KEY = 'feu.tv.simulator.v3';
 
-  const roundMode = new URLSearchParams(location.search).get('rondas');
-  const roundsPreview = roundMode !== 'classico';
-  const roundSections = ['presets', 'builder', 'templates'];
+  const roundSections = ['presets', 'builder'];
   let roundSection = 'presets';
 
   function loadPersisted() {
@@ -520,7 +518,7 @@
     const slot = currentSavePreviewSlot();
     const next = metricsOf(state.customBuilder);
     const popup = document.getElementById('slot-preview');
-    popup.hidden = slot == null || !roundsPreview || roundSection !== 'builder';
+    popup.hidden = slot == null || roundSection !== 'create';
     if (!popup.hidden) {
       const preset = state.presetSlots[slot];
       const title = popup.querySelector('h3');
@@ -558,14 +556,6 @@
   }
 
   // ---- Templates strip: side-scrolling with fading edges ----
-  function updateStripFades() {
-    const strip = els.templatesStrip;
-    if (!strip) return;
-    const max = strip.scrollWidth - strip.clientWidth;
-    strip.style.setProperty('--fade-l', strip.scrollLeft > 2 ? '56px' : '0px');
-    strip.style.setProperty('--fade-r', max - strip.scrollLeft > 2 ? '56px' : '0px');
-  }
-
   // ---- Confirm dialog + completion feedback ----
   function isModalOpen() {
     const m = document.getElementById('modal-layer');
@@ -580,14 +570,15 @@
 
   function openSaveDialog(slotIdx) {
     const L = state.locale;
-    const cur = metricsOf(state.presetSlots[slotIdx]);
+    const existing = state.presetSlots[slotIdx];
+    const cur = metricsOf(existing || state.customBuilder);
     const next = metricsOf(state.customBuilder);
     state.pendingSaveSlot = slotIdx;
-    document.getElementById('modal-title').textContent = I18n.t(L, 'save_dialog_title', { slot: slotIdx + 1 });
+    document.getElementById('modal-title').textContent = existing ? I18n.t(L, 'save_dialog_title', { slot: slotIdx + 1 }) : I18n.t(L, 'create_workout');
     document.getElementById('modal-body').innerHTML = diffRows(L, cur, next) +
-      `<div class="modal-hint">${I18n.t(L, 'save_dialog_hint')}</div>`;
+      (existing ? `<div class="modal-hint">${I18n.t(L, 'save_dialog_hint')}</div>` : '');
     document.getElementById('slot-name-label').textContent = I18n.t(L, 'save_name');
-    document.getElementById('slot-name').value = state.presetSlots[slotIdx].customName || '';
+    document.getElementById('slot-name').value = existing?.customName || '';
     document.getElementById('modal-ok').textContent = I18n.t(L, 'save_ok');
     document.getElementById('modal-cancel').textContent = I18n.t(L, 'save_cancel');
     document.getElementById('modal-layer').hidden = false;
@@ -623,7 +614,9 @@
   function confirmSaveToSlot() {
     const idx = state.pendingSaveSlot;
     if (idx == null) return closeModal();
+    const isNew = idx === state.presetSlots.length;
     state.presetSlots[idx] = {
+      titleKey: 'new_workout',
       ...state.presetSlots[idx],
       customName: document.getElementById('slot-name').value.trim().slice(0, 14),
       repeat: state.customBuilder.repeat,
@@ -632,9 +625,11 @@
     };
     persistSettings();
     closeModal();
+    if (isNew) roundSection = 'presets';
     renderRoundsScreen();
     const card = els.presetsRow.querySelectorAll('.preset-card')[idx];
     if (card) {
+      if (isNew) applyDomFocus(card);
       card.classList.add('is-saved-flash');
       setTimeout(() => card.classList.remove('is-saved-flash'), 1400);
     }
@@ -648,6 +643,12 @@
     }
     if (!document.getElementById('slot-preview').hidden) {
       leaveSaveFlow();
+      return;
+    }
+    if (state.screen === 'ROUNDS' && roundSection === 'create') {
+      roundSection = 'presets';
+      renderRoundsScreen();
+      applyDomFocus(els.viewport.querySelector('[data-create-workout]'));
       return;
     }
     if (state.screen !== 'CLOCK') {
@@ -684,7 +685,6 @@
     els.quickOptions = document.getElementById('quick-options');
 
     els.presetsRow = document.getElementById('presets-row');
-    els.templatesStrip = document.getElementById('templates-strip');
     els.builderRow = document.getElementById('builder-row');
 
     els.phaseHeadline = document.getElementById('phase-headline');
@@ -849,13 +849,14 @@
 
   function renderRoundsScreen() {
     const L = state.locale;
-    if (roundsPreview) {
+    {
       const wrap = els.presetsRow.parentElement;
       wrap.dataset.section = roundSection;
       setHtml(document.getElementById('round-sections'), roundSections.map((section) =>
-        `<button type="button" class="tv-focusable round-section" data-round-section="${section}" aria-pressed="${section === roundSection}">${I18n.t(L, 'round_section_' + section)}</button>`
+        `<button type="button" class="tv-focusable round-section" data-round-section="${section}" aria-pressed="${(section === roundSection || (section === 'presets' && roundSection === 'create'))}">${I18n.t(L, 'round_section_' + section)}</button>`
       ).join(''));
     }
+    document.querySelector('[data-create-workout]').textContent = I18n.t(L, 'create_workout');
     setHtml(els.presetsRow, state.presetSlots
       .map((p, idx) => {
         const focused = false;
@@ -892,14 +893,6 @@
       })
       .join(''));
     updateSavePreview();
-
-    setHtml(
-      els.templatesStrip,
-      Presets.templateLibrary
-        .map((tpl, idx) => `<button type="button" class="tv-focusable tpl-pill" data-tpl-idx="${idx}">${I18n.t(L, tpl.titleKey)}</button>`)
-        .join('')
-    );
-    updateStripFades();
 
     const b = state.customBuilder;
     const isFoc = () => false;
@@ -965,13 +958,11 @@
       <div class="builder-action-col">
         <div class="total-frame-box">${totalStr}</div>
         <button type="button" class="tv-focusable circle-play-btn${isFoc(10) ? ' is-dpad-focused' : ''}" data-builder-idx="10" aria-label="Start Custom Session">▶</button>
+        ${roundSection === 'create' ? `<button type="button" class="tv-focusable opt-pill" data-new-workout>${I18n.t(L, 'save_ok')}</button>
         <div class="save-slots-row">
           <span>${I18n.t(L, 'custom_save_slot_prefix')}</span>
-          <button type="button" class="tv-focusable mini-tag" data-save-slot="0">1</button>
-          <button type="button" class="tv-focusable mini-tag" data-save-slot="1">2</button>
-          <button type="button" class="tv-focusable mini-tag" data-save-slot="2">3</button>
-          <button type="button" class="tv-focusable mini-tag" data-save-slot="3">4</button>
-        </div>
+          ${state.presetSlots.map((_, i) => `<button type="button" class="tv-focusable mini-tag" data-save-slot="${i}">${i + 1}</button>`).join('')}
+        </div>` : `<button type="button" class="tv-focusable opt-pill" data-custom-stopwatch>${I18n.t(L, 'phase_stopwatch')}</button>`}
       </div>
     `;
   }
@@ -1159,16 +1150,8 @@
     const right = [];
 
     if (state.screen === 'CLOCK') {
-      left.push({ id: 'open_quick', label: `⏱ ${I18n.t(L, 'nav_quick_timers')}`, kind: 'pill-primary' });
-      left.push({ id: 'open_rounds', label: `∞ ${I18n.t(L, 'nav_rounds')}`, kind: 'pill-primary' });
-      left.push({ id: 'open_scoreboard', label: `🏆 ${I18n.t(L, 'nav_scoreboard')}`, kind: 'pill-ghost' });
-      const badge = TimeFormatter.summaryBadge(state.lastSessionConfig);
-      if (badge) {
-        left.push({ id: 'repeat_last', label: `↻ ${badge}`, kind: 'pill-gold' });
-      }
-
-      right.push({ id: 'toggle_voice', label: `🔊 ${I18n.t(L, 'nav_voice_short')}`, on: state.soundPreferences.voiceEnabled, kind: 'sound' });
-      right.push({ id: 'open_settings', label: '⚙', kind: 'circle' });
+      left.push({ id: 'open_rounds', label: I18n.t(L, 'nav_rounds'), kind: 'pill-primary' });
+      left.push({ id: 'open_scoreboard', label: I18n.t(L, 'nav_scoreboard'), kind: 'pill-primary' });
     } else if (state.screen === 'ACTIVE_TIMER') {
       left.push({ id: 'back_clock', label: '◀', kind: 'circle' });
       if (state.timer.phase !== 'FINISHED') {
@@ -1184,6 +1167,9 @@
       }
     } else {
       left.push({ id: 'back_clock', label: '◀', kind: 'circle' });
+      if (state.screen === 'ROUNDS' || state.screen === 'SCOREBOARD') {
+        right.push({ id: 'open_settings', label: '⚙ ' + I18n.t(L, 'nav_settings'), kind: 'option' });
+      }
       if (state.screen === 'SETTINGS') {
         right.push({ id: 'download_update', label: I18n.t(L, 'nav_update'), kind: 'option' });
       }
@@ -1250,7 +1236,7 @@
     setHtml(
       els.bottomRight,
       model.right.map((item, rIdx) => renderBarItem(item, model.left.length + rIdx)).join('') +
-        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.7</span>`
+        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.8</span>`
     );
   }
 
@@ -1293,7 +1279,7 @@
       location.assign(localServer ? '/update/web' : 'https://github.com/ryoken99/FeuTimer/releases/latest/download/FeuTimer-web.zip');
     }
     else if (actionId === 'repeat_last') startSession(state.lastSessionConfig);
-    else if (actionId === 'back_clock') returnToClock();
+    else if (actionId === 'back_clock') onBackAction();
     else if (actionId === 'play_pause') togglePlayPause();
     else if (actionId === 'restart_phase') {
       Audio.stopAll();
@@ -1406,7 +1392,7 @@
       return;
     }
     target.classList.add('is-dpad-focused');
-    if (target.closest('.templates-strip')) {
+    if (target.closest('.presets-row')) {
       target.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     }
     updateSavePreview();
@@ -1502,13 +1488,6 @@
         updateSavePreview();
       }
     });
-    els.templatesStrip.addEventListener('scroll', updateStripFades, { passive: true });
-    els.templatesStrip.addEventListener('wheel', (ev) => {
-      if (Math.abs(ev.deltaY) > Math.abs(ev.deltaX)) {
-        els.templatesStrip.scrollLeft += ev.deltaY;
-        ev.preventDefault();
-      }
-    }, { passive: false });
     els.viewport.addEventListener('click', (ev) => {
       Audio.unlock();
       const modalAct = ev.target.closest('[data-modal-act]');
@@ -1525,11 +1504,25 @@
       if (clickedFocusable) applyDomFocus(clickedFocusable);
       if (ev.target.closest('.lan-banner')) return;
 
+      if (ev.target.closest('[data-create-workout]')) {
+        roundSection = 'create';
+        renderRoundsScreen();
+        applyDomFocus(els.builderRow.querySelector('[data-builder-idx="10"]'));
+        return;
+      }
+      if (ev.target.closest('[data-new-workout]')) {
+        openSaveDialog(state.presetSlots.length);
+        return;
+      }
+      if (ev.target.closest('[data-custom-stopwatch]')) {
+        els.stopwatchBtn.click();
+        return;
+      }
       const sectionButton = ev.target.closest('[data-round-section]');
       if (sectionButton) {
         roundSection = sectionButton.dataset.roundSection;
         renderRoundsScreen();
-        const first = els.viewport.querySelector('.rounds-wrap [data-' + ({ presets: 'preset-idx', builder: 'builder-cmd', templates: 'tpl-idx' }[roundSection]) + ']');
+        const first = els.viewport.querySelector('.rounds-wrap [data-' + ({ presets: 'preset-idx', builder: 'builder-cmd' }[roundSection]) + ']');
         applyDomFocus(first);
         return;
       }
@@ -1561,19 +1554,6 @@
         state.focusZone = 'CONTENT';
         state.contentFocusIndex = idx;
         startSession(state.presetSlots[idx]);
-        return;
-      }
-
-      const tplBtn = ev.target.closest('[data-tpl-idx]');
-      if (tplBtn) {
-        const tpl = Presets.templateLibrary[Number(tplBtn.getAttribute('data-tpl-idx'))];
-        if (tpl) {
-          state.customBuilder = CustomBuilder.create(tpl);
-          if (roundsPreview) roundSection = 'builder';
-          persistSettings();
-          renderRoundsScreen();
-          if (roundsPreview) applyDomFocus(els.builderRow.querySelector('[data-builder-idx="10"]'));
-        }
         return;
       }
 
@@ -1757,13 +1737,8 @@
     if (new URLSearchParams(window.location.search).get('tv') === '1') {
       document.body.classList.add('is-tv-only');
     }
-    if (roundsPreview) {
-      document.body.classList.add('rounds-preview');
-      if (roundMode === 'tv') {
-        document.body.classList.add('dpad-mode');
-        state.screen = 'ROUNDS';
-      }
-    }
+    document.body.classList.add('rounds-preview');
+    if (new URLSearchParams(location.search).get('abrir') === 'definicoes') state.screen = 'SETTINGS';
     wireEvents();
     renderAll();
     installFocusObserver();

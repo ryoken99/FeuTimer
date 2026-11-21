@@ -2,6 +2,7 @@
 
 package pt.feubjj.timer.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.animateDpAsState
@@ -122,16 +123,21 @@ fun RoundsScreen(
     var savedSlot by remember { mutableStateOf<Int?>(null) }
     var popupSlot by remember { mutableIntStateOf(0) }
     LaunchedEffect(previewSlot) { previewSlot?.let { popupSlot = it } }
-    // After a save, leave the Guardar row: drop the preview popup and hand focus to Play so the next click starts the session.
+    // Leaving the save flow (saved, cancelled, or Back on the popup/dialog) drops the preview popup and hands focus to Play.
     // Retried once because the closing dialog restores focus to the Guardar number a moment after it is dismissed.
-    LaunchedEffect(savedSlot) {
-        if (savedSlot != null) {
+    var leaveSaveFlowTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(leaveSaveFlowTick) {
+        if (leaveSaveFlowTick > 0) {
             repeat(2) {
                 previewSlot = null
                 runCatching { playFocus.requestFocus() }
                 delay(160L)
             }
         }
+    }
+    // Back while the preview popup is up only closes it (never exits to the clock); Back on the plain tab keeps its normal behaviour
+    BackHandler(enabled = previewSlot != null && pendingSaveSlot == null) {
+        leaveSaveFlowTick++
     }
     LaunchedEffect(savedSlot) {
         if (savedSlot != null) {
@@ -270,8 +276,12 @@ fun RoundsScreen(
                 onSaveToSlot(slot, name)
                 pendingSaveSlot = null
                 savedSlot = slot
+                leaveSaveFlowTick++
             },
-            onCancel = { pendingSaveSlot = null }
+            onCancel = {
+                pendingSaveSlot = null
+                leaveSaveFlowTick++
+            }
         )
     }
 

@@ -1,15 +1,14 @@
 package pt.feubjj.timer.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import pt.feubjj.timer.domain.presets.RoundPresetOption
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,7 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import pt.feubjj.timer.R
+import pt.feubjj.timer.ui.components.HomeWheelDisc
 import pt.feubjj.timer.ui.components.formatCurrentTime
+import pt.feubjj.timer.ui.input.HomeShortcut
 import pt.feubjj.timer.ui.theme.FeuColors
 import pt.feubjj.timer.ui.theme.FeuTypography
 import java.text.SimpleDateFormat
@@ -33,16 +34,13 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * High-legibility Idle Academy Wall Clock screen (`24h` or `12h AM/PM`),
- * using bold header labels and colossal tabular digits readable across the entire gym.
+ * Idle Academy home screen: the remote wheel (each D-pad direction and OK is a direct shortcut) beside the
+ * high-legibility wall clock (`24h` or `12h AM/PM`).
  */
 @Composable
 fun ClockScreen(
-    firstPreset: RoundPresetOption,
-    voiceEnabled: Boolean,
-    onFive: () -> Unit, onVoice: () -> Unit, onQuick: () -> Unit,
-    onPreset: () -> Unit, onWatch: () -> Unit, onCompetition: () -> Unit,
-    onIntervals: () -> Unit, onRepeat: (() -> Unit)?, onSave: () -> Unit,
+    pressedShortcut: HomeShortcut?,
+    onShortcut: (HomeShortcut) -> Unit,
     use24HourClock: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -63,57 +61,58 @@ fun ClockScreen(
             .uppercase(Locale.getDefault())
     }
 
-    Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+    // Clock stays big and centred on the screen; the remote wheel sits in the bottom-left corner (legend is in the bottom bar)
+    Box(
+        modifier = modifier.fillMaxSize().padding(horizontal = 36.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = stringResource(id = R.string.brand_tatami_mode).uppercase(),
-            style = FeuTypography.Eyebrow.copy(
-                color = FeuColors.FeuRed,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.8.sp
-            )
+        HomeWheelDisc(
+            pressed = pressedShortcut,
+            onShortcut = onShortcut,
+            modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 6.dp)
         )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = dateText,
-            style = FeuTypography.Eyebrow.copy(
-                color = FeuColors.GiRestIvory,
-                fontSize = 21.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.0.sp
-            )
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = timeText,
-            style = FeuTypography.GiantClock.copy(
-                fontSize = if (use24HourClock) 96.sp else 80.sp
-            ),
-            maxLines = 1
-        )
-        val watchFocus = remember { FocusRequester() }
-        val rows = listOf(
-            listOf("5:00" to onFive, (stringResource(R.string.nav_voice_short) + if (voiceEnabled) " ON" else " OFF") to onVoice, stringResource(R.string.nav_quick_timers) to onQuick),
-            listOf(presetTitleText(firstPreset) to onPreset, stringResource(R.string.phase_stopwatch) to onWatch, stringResource(R.string.nav_scoreboard) to onCompetition),
-            listOf("8 × 3:00 / 2:00" to onIntervals, stringResource(R.string.quick_repeat_label) to onRepeat, stringResource(R.string.save_ok) to onSave)
-        )
-        rows.forEachIndexed { row, items ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items.forEachIndexed { col, (label, action) ->
-                    val cell = Modifier.width(230.dp)
-                    if (action == null) Spacer(cell) else OptionPill(label, false, action, if (row == 1 && col == 1) cell.focusRequester(watchFocus) else cell)
-                }
+        // Digits are sized to leave the wheel clear on both sides of the centred clock (24h ~4.45 em wide, 12h ~5.4 em)
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val available = maxWidth.value
+            val digitSize = if (use24HourClock) minOf(134f, available / 6.6f) else minOf(104f, available / 8.5f)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(id = R.string.brand_tatami_mode).uppercase(),
+                    maxLines = 1,
+                    softWrap = false,
+                    style = FeuTypography.Eyebrow.copy(
+                        color = FeuColors.FeuRed,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 2.8.sp
+                    )
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = dateText,
+                    maxLines = 1,
+                    softWrap = false,
+                    style = FeuTypography.Eyebrow.copy(
+                        color = FeuColors.GiRestIvory,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.6.sp
+                    )
+                )
+                Text(
+                    text = timeText,
+                    // Tight line height (as on the web TV preview) keeps the digits compact
+                    style = FeuTypography.GiantClock.copy(
+                        fontSize = digitSize.sp,
+                        lineHeight = (digitSize * 0.96f).sp
+                    ),
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
-            Spacer(Modifier.height(3.dp))
         }
-        LaunchedEffect(Unit) { watchFocus.requestFocus() }
     }
 }

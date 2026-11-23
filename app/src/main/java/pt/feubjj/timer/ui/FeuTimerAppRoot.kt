@@ -14,8 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import pt.feubjj.timer.domain.model.RoundConfig
+import pt.feubjj.timer.ui.input.HomeShortcut
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -52,11 +51,11 @@ import java.util.Locale
 @Composable
 fun FeuTimerAppRoot(
     controller: FeuTimerSessionController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pressedHomeShortcut: HomeShortcut? = null
 ) {
     val state by controller.uiState.collectAsState()
     val baseContext = LocalContext.current
-    var saveFromClock by remember { androidx.compose.runtime.mutableStateOf(false) }
     val baseDensity = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val localizedContext = remember(baseContext, state.localeOverride) {
@@ -123,17 +122,8 @@ fun FeuTimerAppRoot(
                         ) { targetScreen ->
                             when (targetScreen) {
                                 TvScreen.CLOCK -> ClockScreen(
-                                    firstPreset = state.presetSlots.first(),
-                                    voiceEnabled = state.soundPreferences.voiceEnabled,
-                                    onFive = { controller.startRound(RoundConfig.single(300)) },
-                                    onVoice = controller::toggleVoiceEnabled,
-                                    onQuick = controller::openQuickTimers,
-                                    onPreset = { controller.startPresetRound(state.presetSlots.first().config) },
-                                    onWatch = controller::startStopwatch,
-                                    onCompetition = controller::openScoreboard,
-                                    onIntervals = { controller.startRound(RoundConfig(8, 180, 120)) },
-                                    onRepeat = if (state.lastSessionConfig != null) controller::repeatLastSession else null,
-                                    onSave = { saveFromClock = true; controller.openRounds() },
+                                    pressedShortcut = pressedHomeShortcut,
+                                    onShortcut = controller::runHomeShortcut,
                                     use24HourClock = state.soundPreferences.use24HourClock
                                 )
 
@@ -147,7 +137,6 @@ fun FeuTimerAppRoot(
                                 )
 
                                 TvScreen.ROUNDS -> RoundsScreen(
-                                    startAtSave = saveFromClock,
                                     presetSlots = state.presetSlots,
                                     customBuilder = state.customBuilder,
                                     onSelectPreset = controller::startPresetRound,
@@ -205,14 +194,14 @@ fun FeuTimerAppRoot(
                             lanRefereeUrl = state.lanRefereeUrl,
                             lanConnectedClients = state.lanConnectedClients,
                             savedResultsCount = state.matchResults.size,
-                            onOpenRounds = { saveFromClock = false; controller.openRounds() },
-                            onOpenSettings = controller::openSettings,
                             onTogglePlayPause = controller::togglePlayPause,
                             onRestartPhase = controller::restartActivePhase,
                             onAdjustTime = controller::adjustActiveTime,
                             onSkipPhase = controller::skipActivePhase,
                             onBackToClock = controller::returnToClock,
-                            onToggleSound = controller::toggleSoundEnabled
+                            onToggleSound = controller::toggleSoundEnabled,
+                            pressedHomeShortcut = pressedHomeShortcut,
+                            onHomeShortcut = controller::runHomeShortcut
                         )
                     }
                 }

@@ -28,6 +28,7 @@ import pt.feubjj.timer.domain.model.TimerPhase
 import pt.feubjj.timer.domain.model.TimerSnapshot
 import pt.feubjj.timer.domain.presets.PresetCatalog
 import pt.feubjj.timer.domain.presets.RoundPresetOption
+import pt.feubjj.timer.ui.input.HomeShortcut
 import pt.feubjj.timer.domain.util.SimpleJson
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,6 +81,18 @@ class FeuTimerSessionController(
     val uiState: StateFlow<FeuTimerUiState> = _uiState.asStateFlow()
 
     private var tickerJob: Job? = null
+
+    /** Home remote wheel: each D-pad direction (and OK) on the idle clock goes straight to one destination. */
+    fun runHomeShortcut(shortcut: HomeShortcut) {
+        if (_uiState.value.screen != TvScreen.CLOCK) return
+        when (shortcut) {
+            HomeShortcut.UP -> openQuickTimers()
+            HomeShortcut.LEFT -> openRounds()
+            HomeShortcut.RIGHT -> openScoreboard()
+            HomeShortcut.DOWN -> openSettings()
+            HomeShortcut.OK -> startStopwatch()
+        }
+    }
 
     fun openQuickTimers() {
         stopActiveTimerInternal()

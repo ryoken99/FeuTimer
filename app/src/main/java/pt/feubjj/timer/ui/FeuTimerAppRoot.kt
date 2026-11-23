@@ -198,7 +198,7 @@ fun FeuTimerAppRoot(
                             onAdjustTime = controller::adjustActiveTime,
                             onSkipPhase = controller::skipActivePhase,
                             onBackToClock = controller::returnToClock,
-                            onToggleVoice = controller::toggleVoiceEnabled
+                            onToggleSound = controller::toggleSoundEnabled
                         )
                     }
                 }

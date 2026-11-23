@@ -38,6 +38,7 @@
     locale: saved?.locale || 'pt-PT',
     screen: 'CLOCK', // CLOCK | QUICK_TIMERS | ROUNDS | SCOREBOARD | SETTINGS | ACTIVE_TIMER
     soundPreferences: {
+      soundEnabled: true,
       voiceEnabled: true,
       warnHalfway: true,
       warn2m: false,
@@ -173,7 +174,7 @@
       state.scoreboard = Scoreboard.reset(Boolean(cmdObj.keepNames), state.scoreboard);
       selectScoreboardDuration(state.scoreboardDurationSeconds);
     } else if (cmd === 'buzzer') {
-      if (isAudioLeader) Audio.play('ROUND_END_ALARM', state.soundPreferences.soundPack, false);
+      if (isAudioLeader && state.soundPreferences.soundEnabled) Audio.play('ROUND_END_ALARM', state.soundPreferences.soundPack, false);
     } else if (cmd === 'save_result') {
       const now = new Date();
       const ts = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -284,7 +285,7 @@
   let finishReturnDeadlineMs = null;
 
   function playCue(cue) {
-    if (!cue || !isAudioLeader) return;
+    if (!cue || !isAudioLeader || !state.soundPreferences.soundEnabled) return;
     if (cue === 'ROUND_END_ALARM' && state.screen === 'SCOREBOARD') cue = 'MATCH_END';
     Audio.play(cue, state.soundPreferences.soundPack, state.soundPreferences.voiceEnabled);
   }
@@ -1187,6 +1188,11 @@
       }
     }
 
+    if (state.screen === 'ROUNDS' || state.screen === 'SCOREBOARD') {
+      const on = state.soundPreferences.soundEnabled;
+      right.push({ id: 'toggle_sound', kind: 'sound', on, label: I18n.t(L, on ? 'sound_on' : 'sound_off') });
+    }
+
     return { left, right, totalCount: left.length + right.length };
   }
 
@@ -1207,7 +1213,7 @@
     }
     if (item.kind === 'sound') {
       return `
-        <button type="button" class="tv-focusable sound-chip${item.on ? ' is-on' : ''}${fCls}" data-bar-idx="${idx}" data-bar-action="${item.id}">
+        <button type="button" aria-pressed="${item.on}" class="tv-focusable sound-chip${item.on ? ' is-on' : ''}${fCls}" data-bar-idx="${idx}" data-bar-action="${item.id}">
           <span class="sound-chip__dot"></span><span>${item.label}</span>
         </button>
       `;
@@ -1313,11 +1319,12 @@
         renderActiveTimer();
         updateAmbientTheme();
       }
-    } else if (actionId === 'toggle_voice') {
-      state.soundPreferences.voiceEnabled = !state.soundPreferences.voiceEnabled;
+    } else if (actionId === 'toggle_sound') {
+      state.soundPreferences.soundEnabled = !state.soundPreferences.soundEnabled;
+      if (!state.soundPreferences.soundEnabled) Audio.stopAll();
       persistSettings();
       renderBottomBar();
-      renderSettingsScreen();
+      applyDomFocus(els.bottomRight.querySelector('[data-bar-action="toggle_sound"]'));
     }
   }
 

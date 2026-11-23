@@ -13,6 +13,8 @@
     <string name="nav_back_clock">Relógio</string>
     <string name="nav_pause">Pausar</string>
     <string name="nav_resume">Retomar</string>
+    <string name="sound_on">Som ligado</string>
+    <string name="sound_off">Som desligado</string>
     <string name="nav_voice_short">Voz</string>
 
     <!-- Quick Timers & Stopwatch Screen -->

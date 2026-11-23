@@ -118,6 +118,7 @@ class SharedPreferencesTimerStorage(context: Context) : TimerStorage {
         val packName = prefs.getString(KEY_SOUND_PACK, SoundPack.CLASSIC_HORN.name)
         val soundPack = SoundPack.entries.firstOrNull { it.name == packName } ?: SoundPack.CLASSIC_HORN
         return SoundPreferences(
+            soundEnabled = prefs.getBoolean(KEY_SOUND_ENABLED, true),
             voiceEnabled = prefs.getBoolean(KEY_VOICE_ENABLED, true),
             warnHalfway = prefs.getBoolean(KEY_WARN_HALFWAY, true),
             warn2m = prefs.getBoolean(KEY_WARN_2M, false),
@@ -133,6 +134,7 @@ class SharedPreferencesTimerStorage(context: Context) : TimerStorage {
 
     override fun saveSoundPreferences(preferences: SoundPreferences) {
         prefs.edit()
+            .putBoolean(KEY_SOUND_ENABLED, preferences.soundEnabled)
             .putBoolean(KEY_VOICE_ENABLED, preferences.voiceEnabled)
             .putBoolean(KEY_WARN_HALFWAY, preferences.warnHalfway)
             .putBoolean(KEY_WARN_2M, preferences.warn2m)
@@ -262,6 +264,7 @@ class SharedPreferencesTimerStorage(context: Context) : TimerStorage {
         const val KEY_QUICK_REPEAT = "quick_repeat"
         const val KEY_QUICK_REST = "quick_rest_sec"
         const val PREFS_NAME = "pt.feubjj.timer.prefs"
+        const val KEY_SOUND_ENABLED = "sound_enabled"
         const val KEY_VOICE_ENABLED = "voice_enabled"
         const val KEY_WARN_HALFWAY = "warn_halfway"
         const val KEY_WARN_2M = "warn_2m"

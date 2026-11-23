@@ -12,6 +12,8 @@
     <string name="nav_back_clock">Clock</string>
     <string name="nav_pause">Pause</string>
     <string name="nav_resume">Resume</string>
+    <string name="sound_on">Sound on</string>
+    <string name="sound_off">Sound off</string>
     <string name="nav_voice_short">Voice</string>
 
     <string name="quick_timers_title">Choose Duration</string>

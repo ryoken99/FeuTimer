@@ -28,5 +28,6 @@ data class SoundPreferences(
     val beep10s: Boolean = true,
     val prepSeconds: Int = 3,
     val soundPack: SoundPack = SoundPack.CLASSIC_HORN,
-    val use24HourClock: Boolean = true
+    val use24HourClock: Boolean = true,
+    val soundEnabled: Boolean = true
 )

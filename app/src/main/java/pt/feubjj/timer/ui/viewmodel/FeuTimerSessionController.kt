@@ -133,6 +133,15 @@ class FeuTimerSessionController(
     }
 
     // Sound, Voice & Display Settings
+    private fun playSound(cue: SoundCue, pack: SoundPack, voiceEnabled: Boolean) {
+        if (_uiState.value.soundPreferences.soundEnabled) soundPlayer.play(cue, pack, voiceEnabled)
+    }
+
+    fun toggleSoundEnabled() {
+        updateSoundPrefs { it.copy(soundEnabled = !it.soundEnabled) }
+        if (!_uiState.value.soundPreferences.soundEnabled) soundPlayer.stopAll()
+    }
+
     fun toggleVoiceEnabled() = updateSoundPrefs { it.copy(voiceEnabled = !it.voiceEnabled) }
     fun toggleWarnHalfway() = updateSoundPrefs { it.copy(warnHalfway = !it.warnHalfway) }
     fun toggleWarn2m() = updateSoundPrefs { it.copy(warn2m = !it.warn2m) }
@@ -149,17 +158,17 @@ class FeuTimerSessionController(
     fun setSoundPack(pack: SoundPack) {
         updateSoundPrefs { it.copy(soundPack = pack) }
         val prefs = _uiState.value.soundPreferences
-        soundPlayer.play(SoundCue.FIGHT_HORN, pack, prefs.voiceEnabled)
+        playSound(SoundCue.FIGHT_HORN, pack, prefs.voiceEnabled)
     }
 
     fun testSoundCue() {
         val prefs = _uiState.value.soundPreferences
-        soundPlayer.play(SoundCue.FIGHT_HORN, prefs.soundPack, prefs.voiceEnabled)
+        playSound(SoundCue.FIGHT_HORN, prefs.soundPack, prefs.voiceEnabled)
     }
 
     fun soundManualBuzzer() {
         val prefs = _uiState.value.soundPreferences
-        soundPlayer.play(SoundCue.ROUND_END_ALARM, prefs.soundPack, voiceEnabled = false)
+        playSound(SoundCue.ROUND_END_ALARM, prefs.soundPack, voiceEnabled = false)
     }
 
     fun setLocaleOverride(localeTag: String?) {
@@ -260,7 +269,7 @@ class FeuTimerSessionController(
                 timer = initialStep.snapshot
             )
         }
-        initialStep.cue?.let { cue -> soundPlayer.play(cue, prefs.soundPack, prefs.voiceEnabled) }
+        initialStep.cue?.let { cue -> playSound(cue, prefs.soundPack, prefs.voiceEnabled) }
         launchTickerLoop(activeScreen = TvScreen.ACTIVE_TIMER)
     }
 
@@ -329,7 +338,7 @@ class FeuTimerSessionController(
         val prefs = _uiState.value.soundPreferences
         val step = TimerEngine.skipToNextPhase(_uiState.value.timer, prefs)
         _uiState.update { it.copy(timer = step.snapshot) }
-        step.cue?.let { cue -> soundPlayer.play(cue, prefs.soundPack, prefs.voiceEnabled) }
+        step.cue?.let { cue -> playSound(cue, prefs.soundPack, prefs.voiceEnabled) }
         if (step.snapshot.phase == TimerPhase.FINISHED) {
             returnToClock()
         }
@@ -393,7 +402,7 @@ class FeuTimerSessionController(
         val prefs = state.soundPreferences
         val initial = TimerEngine.start(RoundConfig.single(secs), prefs, includeLeadIn = true)
         _uiState.update { it.copy(timer = initial.snapshot, scoreboardArmed = false) }
-        initial.cue?.let { soundPlayer.play(it, prefs.soundPack, prefs.voiceEnabled) }
+        initial.cue?.let { playSound(it, prefs.soundPack, prefs.voiceEnabled) }
         launchTickerLoop(activeScreen = TvScreen.SCOREBOARD)
     }
 
@@ -641,7 +650,7 @@ class FeuTimerSessionController(
                 val step = TimerEngine.tickOneSecond(state.timer, state.soundPreferences)
                 _uiState.update { it.copy(timer = step.snapshot) }
                 step.cue?.let { cue ->
-                    soundPlayer.play(
+                    playSound(
                         resolveCue(cue, activeScreen),
                         state.soundPreferences.soundPack,
                         state.soundPreferences.voiceEnabled

@@ -90,7 +90,7 @@ fun BottomControlBar(
     onAdjustTime: (Long) -> Unit,
     onSkipPhase: () -> Unit,
     onBackToClock: () -> Unit,
-    onToggleVoice: () -> Unit,
+    onToggleSound: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val defaultActionFocus = remember { FocusRequester() }
@@ -213,11 +213,11 @@ fun BottomControlBar(
         ) {
             if (screen == TvScreen.ROUNDS || screen == TvScreen.SCOREBOARD) {
                 SoundToggleChip(
-                    label = stringResource(id = R.string.nav_voice_short),
-                    enabled = soundPreferences.voiceEnabled,
+                    label = stringResource(id = if (soundPreferences.soundEnabled) R.string.sound_on else R.string.sound_off),
+                    enabled = soundPreferences.soundEnabled,
                     activeIcon = Icons.AutoMirrored.Rounded.VolumeUp,
                     inactiveIcon = Icons.AutoMirrored.Rounded.VolumeOff,
-                    onClick = onToggleVoice
+                    onClick = onToggleSound
                 )
             }
             if (screen == TvScreen.CLOCK) {

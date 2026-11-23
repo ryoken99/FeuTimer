@@ -12,8 +12,8 @@ android {
         applicationId = "pt.feubjj.timer"
         minSdk = 23
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.3.8"
+        versionCode = 17
+        versionName = "1.3.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

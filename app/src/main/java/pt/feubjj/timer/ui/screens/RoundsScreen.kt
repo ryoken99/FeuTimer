@@ -88,6 +88,7 @@ private enum class RoundSection(val label: Int) {
 
 @Composable
 fun RoundsScreen(
+    startAtSave: Boolean = false,
     presetSlots: List<RoundPresetOption>,
     customBuilder: CustomRoundBuilderState,
     onSelectPreset: (RoundConfig) -> Unit,
@@ -102,7 +103,7 @@ fun RoundsScreen(
     onStartCustom: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var section by remember { mutableStateOf(RoundSection.SAVED) }
+    var section by remember { mutableStateOf(if (startAtSave) RoundSection.CREATE else RoundSection.SAVED) }
     val tabFocus = remember { RoundSection.entries.associateWith { FocusRequester() } }
     var enterPanel by remember { mutableIntStateOf(0) }
     var workoutPage by remember { mutableIntStateOf(0) }
@@ -114,7 +115,9 @@ fun RoundsScreen(
     val workMinusFocus = remember { FocusRequester() }
     val restMinusFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
+    val firstSave = remember { FocusRequester() }
     LaunchedEffect(enterPanel) {
+        if (startAtSave && enterPanel == 0) { firstSave.requestFocus(); return@LaunchedEffect }
         if (enterPanel == 0) tabFocus.getValue(section).requestFocus()
         else when (section) {
             RoundSection.SAVED -> firstPresetFocus.requestFocus()
@@ -258,6 +261,7 @@ fun RoundsScreen(
                     modifier = Modifier.weight(1f)
                 )
                 CustomStartAndSaveColumn(
+                    firstSave = firstSave,
                     slotCount = presetSlots.size,
                     creating = section == RoundSection.CREATE,
                     onNewWorkout = { pendingSaveSlot = presetSlots.size },
@@ -351,7 +355,7 @@ fun RoundsScreen(
 }
 
 @Composable
-private fun presetTitleText(preset: RoundPresetOption): String = preset.customName?.takeIf { it.isNotBlank() } ?: when (preset.titleKey) {
+internal fun presetTitleText(preset: RoundPresetOption): String = preset.customName?.takeIf { it.isNotBlank() } ?: when (preset.titleKey) {
     "new_workout" -> stringResource(R.string.new_workout)
     "preset_adult" -> stringResource(id = R.string.preset_adult)
     "preset_comp" -> stringResource(id = R.string.preset_comp)
@@ -1043,6 +1047,7 @@ private fun PlusMinusRow(
 
 @Composable
 private fun CustomStartAndSaveColumn(
+    firstSave: FocusRequester,
     slotCount: Int,
     creating: Boolean,
     onNewWorkout: () -> Unit,
@@ -1119,6 +1124,7 @@ private fun CustomStartAndSaveColumn(
             )
             for (slot in 0 until slotCount) {
                 MiniTagButton(
+                    modifier = if (slot == 0) Modifier.focusRequester(firstSave) else Modifier,
                     label = "${slot + 1}",
                     isActive = false,
                     onClick = { onSaveSlot(slot) },

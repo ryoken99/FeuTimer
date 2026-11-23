@@ -809,6 +809,15 @@
   }
 
   function renderClockScreen() {
+    const t = key => I18n.t(state.locale, key);
+    const first = state.presetSlots[0];
+    const actions = [
+      ['five', '5:00'], ['voice', t('nav_voice_short') + (state.soundPreferences.voiceEnabled ? ' ON' : ' OFF')], ['open_quick', t('nav_quick_timers')],
+      ['first', first.customName || t(first.titleKey)], ['watch', t('phase_stopwatch')], ['open_scoreboard', t('nav_scoreboard')],
+      ['intervals', '8 × 3:00 / 2:00'], ['repeat_last', t('quick_repeat_label')], ['save', t('save_ok')],
+    ];
+    setHtml(document.getElementById('home-actions'), actions.map(([id, label]) =>
+      `<button type="button" class="tv-focusable opt-pill" data-home="${id}">${escapeHtml(label)}</button>`).join(''));
     els.wallEyebrow.textContent = I18n.t(state.locale, 'brand_tatami_mode');
     updateWallClocks();
   }
@@ -1166,7 +1175,7 @@
 
     if (state.screen === 'CLOCK') {
       left.push({ id: 'open_rounds', label: I18n.t(L, 'nav_rounds'), kind: 'pill-primary' });
-      left.push({ id: 'open_scoreboard', label: I18n.t(L, 'nav_scoreboard'), kind: 'pill-primary' });
+
       right.push({ id: 'open_settings', label: '⚙ ' + I18n.t(L, 'nav_settings'), kind: 'option' });
     } else if (state.screen === 'ACTIVE_TIMER') {
       left.push({ id: 'back_clock', label: '◀', kind: 'circle' });
@@ -1254,7 +1263,7 @@
     setHtml(
       els.bottomRight,
       model.right.map((item, rIdx) => renderBarItem(item, model.left.length + rIdx)).join('') +
-        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.3.9</span>`
+        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.4.0</span>`
     );
   }
 
@@ -1392,7 +1401,7 @@
       if (pp) return pp;
     }
     if (state.screen === 'CLOCK') {
-      const first = list.find((n) => n.hasAttribute('data-bar-action'));
+      const first = list.find(n => n.dataset.home === 'watch');
       if (first) return first;
     }
     return list[0] || null;
@@ -1519,6 +1528,25 @@
       const clickedFocusable = ev.target.closest('.tv-focusable');
       if (clickedFocusable) applyDomFocus(clickedFocusable);
       if (ev.target.closest('.lan-banner')) return;
+
+      const home = ev.target.closest('[data-home]');
+      if (home) {
+        switch (home.dataset.home) {
+          case 'five': startSession({repeat: 0, workSeconds: 300, restSeconds: 0}); break;
+          case 'watch': els.stopwatchBtn.click(); break;
+          case 'first': startSession(state.presetSlots[0]); break;
+          case 'intervals': startSession({repeat: 8, workSeconds: 180, restSeconds: 120}); break;
+          case 'voice':
+            state.soundPreferences.voiceEnabled = !state.soundPreferences.voiceEnabled;
+            persistSettings(); renderClockScreen();
+            applyDomFocus(els.screenClock.querySelector('[data-home="voice"]')); break;
+          case 'save':
+            openRounds(); roundSection = 'create'; renderRoundsScreen();
+            applyDomFocus(els.builderRow.parentElement.querySelector('[data-save-slot="0"]')); break;
+          default: triggerBarAction(home.dataset.home);
+        }
+        return;
+      }
 
       const pageButton = ev.target.closest('[data-page-step]');
       if (pageButton) {

@@ -1454,3 +1454,7 @@ body.is-tv-only .floating-tv-toggle {
 .workout-toolbar .create-workout { align-self: center; }
 .rounds-wrap:not([data-section="presets"]) #workout-pages, #workout-pages:empty { display: none; }
 .rounds-preview .save-slots-row { max-width: 42%; overflow-x: auto; }
+
+#screen-clock .wall-digits { font-size: 96px; }
+#home-actions { display: grid; grid-template-columns: repeat(3, 230px); gap: 4px 6px; }
+#home-actions .opt-pill { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

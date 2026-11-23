@@ -1,6 +1,11 @@
 package pt.feubjj.timer.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import pt.feubjj.timer.domain.presets.RoundPresetOption
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +38,11 @@ import java.util.Locale
  */
 @Composable
 fun ClockScreen(
+    firstPreset: RoundPresetOption,
+    voiceEnabled: Boolean,
+    onFive: () -> Unit, onVoice: () -> Unit, onQuick: () -> Unit,
+    onPreset: () -> Unit, onWatch: () -> Unit, onCompetition: () -> Unit,
+    onIntervals: () -> Unit, onRepeat: (() -> Unit)?, onSave: () -> Unit,
     use24HourClock: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -85,9 +95,25 @@ fun ClockScreen(
         Text(
             text = timeText,
             style = FeuTypography.GiantClock.copy(
-                fontSize = if (use24HourClock) 166.sp else 128.sp
+                fontSize = if (use24HourClock) 96.sp else 80.sp
             ),
             maxLines = 1
         )
+        val watchFocus = remember { FocusRequester() }
+        val rows = listOf(
+            listOf("5:00" to onFive, (stringResource(R.string.nav_voice_short) + if (voiceEnabled) " ON" else " OFF") to onVoice, stringResource(R.string.nav_quick_timers) to onQuick),
+            listOf(presetTitleText(firstPreset) to onPreset, stringResource(R.string.phase_stopwatch) to onWatch, stringResource(R.string.nav_scoreboard) to onCompetition),
+            listOf("8 × 3:00 / 2:00" to onIntervals, stringResource(R.string.quick_repeat_label) to onRepeat, stringResource(R.string.save_ok) to onSave)
+        )
+        rows.forEachIndexed { row, items ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items.forEachIndexed { col, (label, action) ->
+                    val cell = Modifier.width(230.dp)
+                    if (action == null) Spacer(cell) else OptionPill(label, false, action, if (row == 1 && col == 1) cell.focusRequester(watchFocus) else cell)
+                }
+            }
+            Spacer(Modifier.height(3.dp))
+        }
+        LaunchedEffect(Unit) { watchFocus.requestFocus() }
     }
 }

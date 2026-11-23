@@ -83,7 +83,6 @@ fun BottomControlBar(
     lanConnectedClients: Int,
     savedResultsCount: Int,
     onOpenRounds: () -> Unit,
-    onOpenScoreboard: () -> Unit,
     onOpenSettings: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onRestartPhase: () -> Unit,
@@ -96,7 +95,7 @@ fun BottomControlBar(
     val defaultActionFocus = remember { FocusRequester() }
 
     LaunchedEffect(screen) {
-        if (screen == TvScreen.CLOCK || screen == TvScreen.ACTIVE_TIMER) {
+        if (screen == TvScreen.ACTIVE_TIMER) {
             runCatching { defaultActionFocus.requestFocus() }
         }
     }
@@ -126,12 +125,7 @@ fun BottomControlBar(
                         onClick = onOpenRounds,
                         modifier = Modifier.focusRequester(defaultActionFocus)
                     )
-                    TvActionPill(
-                        icon = Icons.Rounded.EmojiEvents,
-                        label = stringResource(id = R.string.nav_scoreboard),
-                        isPrimary = false,
-                        onClick = onOpenScoreboard
-                    )
+
                 }
 
                 TvScreen.ACTIVE_TIMER -> {

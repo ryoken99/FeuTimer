@@ -1,5 +1,6 @@
 package pt.feubjj.timer
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.WindowManager
@@ -7,7 +8,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import pt.feubjj.timer.ui.FeuTimerAppRoot
+import pt.feubjj.timer.ui.input.HomeShortcut
 import pt.feubjj.timer.ui.input.RemoteGlobalAction
 import pt.feubjj.timer.ui.input.RemoteKeyClassifier
 import pt.feubjj.timer.ui.viewmodel.FeuTimerViewModel
@@ -21,6 +26,10 @@ import pt.feubjj.timer.ui.viewmodel.TvScreen
 class MainActivity : ComponentActivity() {
 
     private val timerViewModel: FeuTimerViewModel by viewModels()
+
+    // Home remote wheel: which direction is being held (lights up on screen) and which key armed it
+    private var pressedHomeShortcut by mutableStateOf<HomeShortcut?>(null)
+    private var armedHomeKeyCode: Int = KeyEvent.KEYCODE_UNKNOWN
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,8 +49,37 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            FeuTimerAppRoot(controller = timerViewModel.controller)
+            FeuTimerAppRoot(controller = timerViewModel.controller, pressedHomeShortcut = pressedHomeShortcut)
         }
+    }
+
+    /**
+     * On the idle clock the D-pad does not move focus: each direction and OK is a direct shortcut (see the on-screen
+     * wheel). The shortcut fires on key-up, and only if the same key went down on this screen, so a press can never
+     * leak into the screen it opens (e.g. OK starting the stopwatch and then pausing it).
+     */
+    // super.dispatchKeyEvent is the public Activity API; androidx.core only marks its own override as restricted
+    @SuppressLint("RestrictedApi")
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val shortcut = HomeShortcut.forKeyCode(event.keyCode)
+        if (shortcut == null || timerViewModel.uiState.value.screen != TvScreen.CLOCK) {
+            armedHomeKeyCode = KeyEvent.KEYCODE_UNKNOWN
+            pressedHomeShortcut = null
+            return super.dispatchKeyEvent(event)
+        }
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) {
+                armedHomeKeyCode = event.keyCode
+                pressedHomeShortcut = shortcut
+            }
+            KeyEvent.ACTION_UP -> {
+                val armed = armedHomeKeyCode == event.keyCode
+                armedHomeKeyCode = KeyEvent.KEYCODE_UNKNOWN
+                pressedHomeShortcut = null
+                if (armed && !event.isCanceled) timerViewModel.controller.runHomeShortcut(shortcut)
+            }
+        }
+        return true
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {

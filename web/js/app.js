@@ -808,16 +808,76 @@
     els.screenSettings.classList.toggle('is-active', state.screen === 'SETTINGS');
   }
 
+  // Home remote wheel: the four D-pad directions and OK are direct shortcuts, drawn as one control shaped like the remote
+  // Line icons (24x24 grid) instead of emoji, so the wheel looks the same on every device
+  const gearPath = (() => {
+    const pts = [];
+    for (let i = 0; i < 16; i++) {
+      const a = (i * Math.PI) / 8 - Math.PI / 16;
+      const r = i % 2 === 0 ? 9.6 : 7.4;
+      pts.push((12 + r * Math.cos(a)).toFixed(2) + ' ' + (12 + r * Math.sin(a)).toFixed(2));
+    }
+    return 'M' + pts.join(' L') + ' Z';
+  })();
+  const ICON_BODY = {
+    quick: '<path d="M6.5 3h11M6.5 21h11M7.5 3v3.6c0 1.7 1.1 3 2.9 4.4l1.6 1.2-1.6 1.2c-1.8 1.4-2.9 2.7-2.9 4.4V21M16.5 3v3.6c0 1.7-1.1 3-2.9 4.4L12 12.2l1.6 1.2c1.8 1.4 2.9 2.7 2.9 4.4V21"/>',
+    trophy: '<path d="M8 3.5h8v5.2a4 4 0 0 1-8 0V3.5zM8 5.5H4.6a3 3 0 0 0 3.2 4.6M16 5.5h3.4a3 3 0 0 1-3.2 4.6M12 12.8v3.4M8.5 20.5h7M9.7 16.2h4.6l.6 4.3H9.1l.6-4.3z"/>',
+    gear: `<path d="${gearPath}"/><circle cx="12" cy="12" r="3.1"/>`,
+    rounds: '<path d="M1.8 8v8M5.4 5v14M18.6 5v14M22.2 8v8M5.4 12h13.2"/>',
+    watch: '<circle cx="12" cy="13.5" r="7.2"/><path d="M9.5 2.6h5M12 13.5V9.3M18.3 6.4l1.4 1.4"/>',
+  };
+  const iconSvg = (name, cls) => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_BODY[name]}</svg>`;
+  const HOME_WHEEL = [
+    { dir: 'up', angle: -90, icon: 'quick', label: 'nav_quick_timers', run: () => openQuickTimers() },
+    { dir: 'right', angle: 0, icon: 'trophy', label: 'nav_scoreboard', run: () => openScoreboard() },
+    { dir: 'down', angle: 90, icon: 'gear', label: 'nav_settings', run: () => openSettings() },
+    { dir: 'left', angle: 180, icon: 'rounds', label: 'nav_rounds', run: () => openRounds() },
+  ];
+
+  // Wheel = icons only; the legend underneath names what each direction (and OK) does
+  function homeWheelHtml() {
+    const t = (key) => escapeHtml(I18n.t(state.locale, key));
+    const OUTER = 106, INNER = 47, GAP = 3;
+    const pt = (deg, r) => `${(r * Math.cos((deg * Math.PI) / 180)).toFixed(2)} ${(r * Math.sin((deg * Math.PI) / 180)).toFixed(2)}`;
+    const wedges = HOME_WHEEL.map(({ dir, angle, icon }) => {
+      const a0 = angle - 45 + GAP, a1 = angle + 45 - GAP;
+      const tip = pt(angle, 102), baseL = pt(angle - 6.5, 89), baseR = pt(angle + 6.5, 89);
+      const [ix, iy] = pt(angle, 68).split(" ");
+      return `<path class="hw-wedge" data-wheel="${dir}" d="M ${pt(a0, OUTER)} A ${OUTER} ${OUTER} 0 0 1 ${pt(a1, OUTER)} L ${pt(a1, INNER)} A ${INNER} ${INNER} 0 0 0 ${pt(a0, INNER)} Z"/>` +
+        `<polygon class="hw-chevron" points="${tip} ${baseL} ${baseR}"/>` +
+        `<svg class="hw-icon" x="${(Number(ix) - 15).toFixed(2)}" y="${(Number(iy) - 15).toFixed(2)}" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICON_BODY[icon]}</svg>`;
+    }).join("");
+    const stopwatch = escapeHtml(I18n.t(state.locale, "quick_stopwatch_btn").replace(/\s*\(.*\)\s*$/, ""));
+    const ARROW = { up: "▲", right: "▶", down: "▼", left: "◀" };
+    const legend = HOME_WHEEL.map(({ dir, icon, label }) =>
+      `<div class="hw-key" data-wheel="${dir}"><i>${ARROW[dir]}</i>${iconSvg(icon, "hw-key__icon")}${t(label)}</div>`).join("") +
+      `<div class="hw-key" data-wheel="ok"><i>OK</i>${iconSvg("watch", "hw-key__icon")}${stopwatch}</div>`;
+    const disc = `<div class="hw-disc"><svg viewBox="-110 -110 220 220" aria-hidden="true">${wedges}` +
+      `<circle class="hw-center" data-wheel="ok" r="40"/><svg class="hw-icon hw-icon--ok" x="-14" y="-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_BODY.watch}</svg><text class="hw-ok-text" y="14">OK</text></svg></div>`;
+    return { disc, legend };
+  }
+
+  let homeWheelBusy = false;
+  function triggerHomeWheel(dir) {
+    if (homeWheelBusy || state.screen !== 'CLOCK') return;
+    const nodes = els.screenClock.querySelectorAll(`[data-wheel="${dir}"]`);
+    if (nodes.length === 0) return;
+    Audio.unlock();
+    homeWheelBusy = true;
+    nodes.forEach((n) => n.classList.add('is-pressed'));
+    // Brief flash so the pressed direction is visible on the wheel before the screen changes
+    setTimeout(() => {
+      nodes.forEach((n) => n.classList.remove('is-pressed'));
+      homeWheelBusy = false;
+      if (state.screen !== 'CLOCK') return;
+      if (dir === 'ok') els.stopwatchBtn.click();
+      else HOME_WHEEL.find((w) => w.dir === dir).run();
+    }, 150);
+  }
+
   function renderClockScreen() {
-    const t = key => I18n.t(state.locale, key);
-    const first = state.presetSlots[0];
-    const actions = [
-      ['five', '5:00'], ['voice', t('nav_voice_short') + (state.soundPreferences.voiceEnabled ? ' ON' : ' OFF')], ['open_quick', t('nav_quick_timers')],
-      ['first', first.customName || t(first.titleKey)], ['watch', t('phase_stopwatch')], ['open_scoreboard', t('nav_scoreboard')],
-      ['intervals', '8 × 3:00 / 2:00'], ['repeat_last', t('quick_repeat_label')], ['save', t('save_ok')],
-    ];
-    setHtml(document.getElementById('home-actions'), actions.map(([id, label]) =>
-      `<button type="button" class="tv-focusable opt-pill" data-home="${id}">${escapeHtml(label)}</button>`).join(''));
+    const wheel = homeWheelHtml();
+    setHtml(document.getElementById('home-wheel'), wheel.disc);
     els.wallEyebrow.textContent = I18n.t(state.locale, 'brand_tatami_mode');
     updateWallClocks();
   }
@@ -1174,9 +1234,7 @@
     const right = [];
 
     if (state.screen === 'CLOCK') {
-      left.push({ id: 'open_rounds', label: I18n.t(L, 'nav_rounds'), kind: 'pill-primary' });
-
-      right.push({ id: 'open_settings', label: '⚙ ' + I18n.t(L, 'nav_settings'), kind: 'option' });
+      // Home has no separate buttons: every destination lives on the remote wheel
     } else if (state.screen === 'ACTIVE_TIMER') {
       left.push({ id: 'back_clock', label: '◀', kind: 'circle' });
       if (state.timer.phase !== 'FINISHED') {
@@ -1239,6 +1297,7 @@
     }
 
     let extraLeft = '';
+    if (state.screen === 'CLOCK') extraLeft = `<div class="hw-legend">${homeWheelHtml().legend}</div>`;
     if (state.screen === 'SCOREBOARD') {
       const fullHref = `http://${state.lanUrl}`;
       const qrSvg = Qr ? Qr.toSvg(fullHref, 36) : '';
@@ -1400,10 +1459,6 @@
       const pp = list.find((n) => n.getAttribute('data-bar-action') === 'play_pause');
       if (pp) return pp;
     }
-    if (state.screen === 'CLOCK') {
-      const first = list.find(n => n.dataset.home === 'watch');
-      if (first) return first;
-    }
     return list[0] || null;
   }
 
@@ -1439,6 +1494,10 @@
   function handleDpadDirection(dir) {
     Audio.unlock();
     document.body.classList.add('dpad-mode');
+    if (state.screen === 'CLOCK' && !isModalOpen()) {
+      triggerHomeWheel(dir);
+      return;
+    }
     const list = listFocusables();
     if (list.length === 0) return;
     let curIdx = list.findIndex((n) => n.classList.contains('is-dpad-focused'));
@@ -1458,6 +1517,10 @@
   function handleDpadSelect() {
     Audio.unlock();
     document.body.classList.add('dpad-mode');
+    if (state.screen === 'CLOCK' && !isModalOpen()) {
+      triggerHomeWheel('ok');
+      return;
+    }
     let el = els.viewport.querySelector('.is-dpad-focused');
     if (!el || !el.isConnected) {
       restoreDomFocus();
@@ -1529,22 +1592,9 @@
       if (clickedFocusable) applyDomFocus(clickedFocusable);
       if (ev.target.closest('.lan-banner')) return;
 
-      const home = ev.target.closest('[data-home]');
-      if (home) {
-        switch (home.dataset.home) {
-          case 'five': startSession({repeat: 0, workSeconds: 300, restSeconds: 0}); break;
-          case 'watch': els.stopwatchBtn.click(); break;
-          case 'first': startSession(state.presetSlots[0]); break;
-          case 'intervals': startSession({repeat: 8, workSeconds: 180, restSeconds: 120}); break;
-          case 'voice':
-            state.soundPreferences.voiceEnabled = !state.soundPreferences.voiceEnabled;
-            persistSettings(); renderClockScreen();
-            applyDomFocus(els.screenClock.querySelector('[data-home="voice"]')); break;
-          case 'save':
-            openRounds(); roundSection = 'create'; renderRoundsScreen();
-            applyDomFocus(els.builderRow.parentElement.querySelector('[data-save-slot="0"]')); break;
-          default: triggerBarAction(home.dataset.home);
-        }
+      const wheelPart = ev.target.closest('[data-wheel]');
+      if (wheelPart) {
+        triggerHomeWheel(wheelPart.getAttribute('data-wheel'));
         return;
       }
 

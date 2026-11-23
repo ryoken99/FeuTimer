@@ -16,6 +16,7 @@ import pt.feubjj.timer.audio.SoundPlayerPort
 import pt.feubjj.timer.data.InMemoryTimerStorage
 import pt.feubjj.timer.domain.model.RoundConfig
 import pt.feubjj.timer.domain.model.TimerPhase
+import pt.feubjj.timer.ui.input.HomeShortcut
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeuTimerSessionControllerTest {
@@ -54,6 +55,30 @@ class FeuTimerSessionControllerTest {
         assertEquals(TvScreen.ROUNDS, controller.uiState.value.screen)
         assertTrue(controller.onBackPressed())
         assertEquals(TvScreen.CLOCK, controller.uiState.value.screen)
+    }
+
+    @Test
+    fun `home remote wheel maps each direction and OK to its destination, only from the idle clock`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val controller = FeuTimerSessionController(InMemoryTimerStorage(), RecordingSoundPlayer(), backgroundScope, dispatcher)
+        val destinations = mapOf(
+            HomeShortcut.UP to TvScreen.QUICK_TIMERS,
+            HomeShortcut.LEFT to TvScreen.ROUNDS,
+            HomeShortcut.RIGHT to TvScreen.SCOREBOARD,
+            HomeShortcut.DOWN to TvScreen.SETTINGS,
+            HomeShortcut.OK to TvScreen.ACTIVE_TIMER
+        )
+        for ((shortcut, screen) in destinations) {
+            controller.runHomeShortcut(shortcut)
+            assertEquals(screen, controller.uiState.value.screen)
+            // Away from the clock the wheel is inert: arrows belong to that screen
+            controller.runHomeShortcut(HomeShortcut.DOWN)
+            assertEquals(screen, controller.uiState.value.screen)
+            controller.returnToClock()
+            assertEquals(TvScreen.CLOCK, controller.uiState.value.screen)
+        }
+        controller.runHomeShortcut(HomeShortcut.OK)
+        assertTrue(controller.uiState.value.timer.config?.isStopwatch == true)
     }
 
     @Test

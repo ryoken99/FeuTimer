@@ -63,6 +63,7 @@ import pt.feubjj.timer.R
 import pt.feubjj.timer.domain.model.SoundPreferences
 import pt.feubjj.timer.domain.model.TimerPhase
 import pt.feubjj.timer.network.QrMatrixEncoder
+import pt.feubjj.timer.ui.input.HomeShortcut
 import pt.feubjj.timer.ui.theme.FeuColors
 import pt.feubjj.timer.ui.theme.FeuTypography
 import pt.feubjj.timer.ui.viewmodel.TvScreen
@@ -82,14 +83,14 @@ fun BottomControlBar(
     lanRefereeUrl: String?,
     lanConnectedClients: Int,
     savedResultsCount: Int,
-    onOpenRounds: () -> Unit,
-    onOpenSettings: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onRestartPhase: () -> Unit,
     onAdjustTime: (Long) -> Unit,
     onSkipPhase: () -> Unit,
     onBackToClock: () -> Unit,
     onToggleSound: () -> Unit,
+    pressedHomeShortcut: HomeShortcut? = null,
+    onHomeShortcut: (HomeShortcut) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val defaultActionFocus = remember { FocusRequester() }
@@ -117,16 +118,8 @@ fun BottomControlBar(
             horizontalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             when (screen) {
-                TvScreen.CLOCK -> {
-                    TvActionPill(
-                        icon = Icons.Rounded.AllInclusive,
-                        label = stringResource(id = R.string.nav_rounds),
-                        isPrimary = true,
-                        onClick = onOpenRounds,
-                        modifier = Modifier.focusRequester(defaultActionFocus)
-                    )
-
-                }
+                // Home has no separate buttons: the wheel is the control, and this legend names each direction
+                TvScreen.CLOCK -> HomeWheelLegend(pressed = pressedHomeShortcut, onShortcut = onHomeShortcut)
 
                 TvScreen.ACTIVE_TIMER -> {
                     CircularMediaIconButton(
@@ -212,15 +205,6 @@ fun BottomControlBar(
                     activeIcon = Icons.AutoMirrored.Rounded.VolumeUp,
                     inactiveIcon = Icons.AutoMirrored.Rounded.VolumeOff,
                     onClick = onToggleSound
-                )
-            }
-            if (screen == TvScreen.CLOCK) {
-                CircularMediaIconButton(
-                    icon = Icons.Rounded.Settings,
-                    contentDescription = stringResource(id = R.string.nav_settings),
-                    size = 46.dp,
-                    isProminent = false,
-                    onClick = onOpenSettings
                 )
             }
 

@@ -30,6 +30,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FeuTimer">
 
+        <activity android:name=".ClassicTimerActivity" android:screenOrientation="landscape" android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode"

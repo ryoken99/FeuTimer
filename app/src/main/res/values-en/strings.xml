@@ -12,6 +12,8 @@
     <string name="nav_back_clock">Clock</string>
     <string name="nav_pause">Pause</string>
     <string name="nav_resume">Resume</string>
+    <string name="voice_on">Voice on</string>
+    <string name="voice_off">Voice off</string>
     <string name="sound_on">Sound on</string>
     <string name="sound_off">Sound off</string>
     <string name="nav_voice_short">Voice</string>
@@ -99,4 +101,7 @@
     <string name="round_section_templates">Templates</string>
     <string name="create_workout">Create workout</string>
     <string name="new_workout">New workout</string>
+    <string name="time_guide">← → minutes · Hold ↑ for seconds · Hold ↓ for rounds · OK to start</string>
+    <string name="scan_hint">In menus, hold ← or → to browse buttons. Release and press OK.</string>
+    <string name="hold_save">Hold OK · Save</string>
 </resources>

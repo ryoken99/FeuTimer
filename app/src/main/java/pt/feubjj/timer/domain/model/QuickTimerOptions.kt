@@ -7,10 +7,12 @@ package pt.feubjj.timer.domain.model
  */
 data class QuickTimerOptions(
     val repeat: Int = 1,
-    val restSeconds: Long = 60L
+    val restSeconds: Long = 60L,
+    val endless: Boolean = false,
+    val durationSeconds: Long = 300L
 ) {
     fun adjustRepeat(increase: Boolean): QuickTimerOptions =
-        copy(repeat = (repeat + if (increase) 1 else -1).coerceIn(MIN_REPEAT, MAX_REPEAT))
+        copy(endless = false, repeat = (repeat + if (increase) 1 else -1).coerceIn(MIN_REPEAT, MAX_REPEAT))
 
     /** `5s` steps below 30s, `10s` steps from 30s up, `0` = no rest. */
     fun adjustRest(increase: Boolean): QuickTimerOptions {
@@ -20,7 +22,9 @@ data class QuickTimerOptions(
     }
 
     fun toRoundConfig(workSeconds: Long): RoundConfig =
-        if (repeat <= 1) {
+        if (endless) {
+            RoundConfig.endless(workSeconds, restSeconds)
+        } else if (repeat <= 1) {
             RoundConfig.single(workSeconds)
         } else {
             RoundConfig(repeat = repeat, workSeconds = workSeconds, restSeconds = restSeconds)

@@ -26,9 +26,12 @@ test('TimeFormatter formats MM:SS and compact BJJ durations identically to Kotli
   assert.equal(TimeFormatter.formatCompactDuration(2310), '38m 30s');
 });
 
-test('Presets exposes all 15 quick timers and 4 core BJJ sparring presets', () => {
+test('Presets exposes all 15 quick timers and the three initial saved workouts', () => {
   assert.equal(Presets.quickTimers.length, 15);
-  assert.equal(Presets.roundPresets.length, 4);
+  assert.equal(Presets.roundPresets.length, 3);
+  assert.deepEqual(Presets.roundPresets[2], {
+    id: 'drill_2x3', titleKey: 'preset_drill', repeat: 2, workSeconds: 180, restSeconds: 3,
+  });
 });
 
 test('CustomBuilder enforces step increments, endless toggle, and bounds', () => {

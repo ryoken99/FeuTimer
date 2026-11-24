@@ -46,31 +46,40 @@
         <div class="screen-deck">
           <!-- Screen 1: Idle Academy Wall Clock -->
           <section id="screen-clock" class="tv-screen is-active">
-            <div id="wall-eyebrow" class="wall-eyebrow">CRONÓMETRO DE TATAMI</div>
-            <div id="wall-date" class="wall-date"></div>
-            <div id="wall-digits" class="wall-digits">00:00:00</div>
-            <div id="home-actions"></div>
+            <div class="home-main">
+              <div id="home-wheel" class="home-wheel"></div>
+              <div class="wall-col">
+                <div id="wall-eyebrow" class="wall-eyebrow">CRONÓMETRO DE TATAMI</div>
+                <div id="wall-date" class="wall-date"></div>
+                <div id="wall-digits" class="wall-digits">00:00:00</div>
+              </div>
+            </div>
+            <small id="scan-hint"></small>
           </section>
 
-          <!-- Screen 2: 3x5 Quick Single-Timer Grid + Stopwatch -->
+          <!-- Screen 2: Adjustable duration and round options -->
           <section id="screen-quick" class="tv-screen">
             <div class="quick-topbar">
               <h2 id="quick-title"></h2>
-              <button type="button" id="btn-stopwatch" class="tv-focusable stopwatch-pill"></button>
             </div>
-            <div id="quick-options" class="quick-options"></div>
-            <div id="quick-grid" class="quick-grid"></div>
+            <button type="button" class="tv-focusable time-face" data-time-start><span>▶</span> <b></b></button>
+            <div id="time-guide"></div>
+            <div id="time-steps" class="time-steps"></div>
+            <button type="button" class="tv-focusable opt-pill" data-time-options aria-expanded="false"></button>
+            <div id="quick-options" class="quick-options" hidden></div>
           </section>
 
           <!-- Screen 3: Saveable Presets + Templates + Custom Builder -->
           <section id="screen-rounds" class="tv-screen">
             <div class="rounds-wrap">
               <div class="workout-toolbar">
-                <div id="round-sections" class="round-sections"></div>
+                <div id="round-sections" class="round-sections"></div><span id="home-save-hint"></span>
+                <button type="button" class="tv-focusable opt-pill" data-undo-workout hidden></button>
                 <button type="button" class="tv-focusable opt-pill create-workout" data-create-workout></button>
                 <div id="workout-pages"></div>
               </div>
               <div id="presets-row" class="presets-row"></div>
+              <div id="field-edit-guide" hidden></div>
               <div id="builder-row" class="builder-row"></div>
             </div>
           </section>

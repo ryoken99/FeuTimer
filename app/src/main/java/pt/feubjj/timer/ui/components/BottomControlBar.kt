@@ -22,10 +22,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.VolumeOff
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AllInclusive
 import androidx.compose.material.icons.rounded.EmojiEvents
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import pt.feubjj.timer.BuildConfig
 import pt.feubjj.timer.R
+import pt.feubjj.timer.ui.input.HomeShortcut
 import pt.feubjj.timer.domain.model.SoundPreferences
 import pt.feubjj.timer.domain.model.TimerPhase
 import pt.feubjj.timer.network.QrMatrixEncoder
@@ -82,14 +83,14 @@ fun BottomControlBar(
     lanRefereeUrl: String?,
     lanConnectedClients: Int,
     savedResultsCount: Int,
-    onOpenRounds: () -> Unit,
-    onOpenSettings: () -> Unit,
+    pressedHomeShortcut: HomeShortcut?,
+    onHomeShortcut: (HomeShortcut) -> Unit,
     onTogglePlayPause: () -> Unit,
     onRestartPhase: () -> Unit,
     onAdjustTime: (Long) -> Unit,
     onSkipPhase: () -> Unit,
     onBackToClock: () -> Unit,
-    onToggleSound: () -> Unit,
+    onToggleVoice: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val defaultActionFocus = remember { FocusRequester() }
@@ -117,16 +118,7 @@ fun BottomControlBar(
             horizontalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             when (screen) {
-                TvScreen.CLOCK -> {
-                    TvActionPill(
-                        icon = Icons.Rounded.AllInclusive,
-                        label = stringResource(id = R.string.nav_rounds),
-                        isPrimary = true,
-                        onClick = onOpenRounds,
-                        modifier = Modifier.focusRequester(defaultActionFocus)
-                    )
-
-                }
+                TvScreen.CLOCK -> HomeWheelLegend(pressedHomeShortcut, onHomeShortcut)
 
                 TvScreen.ACTIVE_TIMER -> {
                     CircularMediaIconButton(
@@ -205,25 +197,15 @@ fun BottomControlBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            if (screen == TvScreen.ROUNDS || screen == TvScreen.SCOREBOARD) {
+            if (screen == TvScreen.ROUNDS || screen == TvScreen.QUICK_TIMERS || screen == TvScreen.SCOREBOARD) {
                 SoundToggleChip(
-                    label = stringResource(id = if (soundPreferences.soundEnabled) R.string.sound_on else R.string.sound_off),
-                    enabled = soundPreferences.soundEnabled,
-                    activeIcon = Icons.AutoMirrored.Rounded.VolumeUp,
-                    inactiveIcon = Icons.AutoMirrored.Rounded.VolumeOff,
-                    onClick = onToggleSound
+                    label = stringResource(if (soundPreferences.voiceEnabled) R.string.voice_on else R.string.voice_off),
+                    enabled = soundPreferences.voiceEnabled,
+                    activeIcon = Icons.Rounded.Mic,
+                    inactiveIcon = Icons.Rounded.MicOff,
+                    onClick = onToggleVoice
                 )
             }
-            if (screen == TvScreen.CLOCK) {
-                CircularMediaIconButton(
-                    icon = Icons.Rounded.Settings,
-                    contentDescription = stringResource(id = R.string.nav_settings),
-                    size = 46.dp,
-                    isProminent = false,
-                    onClick = onOpenSettings
-                )
-            }
-
             if (screen == TvScreen.SETTINGS) {
                 val context = LocalContext.current
                 OptionPill(stringResource(R.string.nav_update), selected = false, onClick = {

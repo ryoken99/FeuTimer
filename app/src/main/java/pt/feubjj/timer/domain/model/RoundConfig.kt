@@ -136,7 +136,7 @@ data class CustomRoundBuilderState(
 
     fun toRoundConfig(): RoundConfig = RoundConfig(
         repeat = if (isEndless) RoundConfig.ENDLESS_ROUNDS else repeat.coerceIn(MIN_REPEAT, MAX_REPEAT),
-        workSeconds = workSeconds.coerceIn(MIN_SMALL_WORK_SECONDS, MAX_SECONDS),
+        workSeconds = workSeconds.coerceIn(1L, MAX_SECONDS),
         restSeconds = restSeconds.coerceIn(MIN_REST_SECONDS, MAX_SECONDS)
     )
 
@@ -156,7 +156,7 @@ data class CustomRoundBuilderState(
             }
             return CustomRoundBuilderState(
                 repeat = rep,
-                workSeconds = config.workSeconds.coerceIn(MIN_SMALL_WORK_SECONDS, MAX_SECONDS),
+                workSeconds = config.workSeconds.coerceIn(1L, MAX_SECONDS),
                 restSeconds = config.restSeconds.coerceIn(MIN_REST_SECONDS, MAX_SECONDS),
                 lastFiniteRepeat = if (rep > 0) rep else 5
             )

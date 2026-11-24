@@ -70,8 +70,7 @@
   const roundPresets = [
     { id: 'adult_5x5', titleKey: 'preset_adult', repeat: 5, workSeconds: 300, restSeconds: 60 },
     { id: 'comp_6x6', titleKey: 'preset_comp', repeat: 6, workSeconds: 360, restSeconds: 30 },
-    { id: 'specific_10x2', titleKey: 'preset_specific', repeat: 10, workSeconds: 120, restSeconds: 180 },
-    { id: 'kids_3x3', titleKey: 'preset_kids_drills', repeat: 3, workSeconds: 180, restSeconds: 30 },
+    { id: 'drill_2x3', titleKey: 'preset_drill', repeat: 2, workSeconds: 180, restSeconds: 3 },
   ];
 
   const templateLibrary = [

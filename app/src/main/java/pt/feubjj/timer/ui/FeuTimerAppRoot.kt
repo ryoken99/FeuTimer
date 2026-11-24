@@ -11,12 +11,20 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import pt.feubjj.timer.ui.input.HomeShortcut
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalWindowInfo
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import pt.feubjj.timer.domain.model.RoundConfig
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.Key
@@ -52,13 +60,18 @@ import java.util.Locale
 @Composable
 fun FeuTimerAppRoot(
     controller: FeuTimerSessionController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pressedHomeShortcut: HomeShortcut? = null
 ) {
     val state by controller.uiState.collectAsState()
     val baseContext = LocalContext.current
-    var saveFromClock by remember { androidx.compose.runtime.mutableStateOf(false) }
     val baseDensity = LocalDensity.current
     val focusManager = LocalFocusManager.current
+    val scope = rememberCoroutineScope()
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    var timeFaceFocused by remember(state.screen) { mutableStateOf(false) }
+    val scan = remember { HorizontalFocusScan() }
+    DisposableEffect(state.screen, windowFocused) { onDispose { scan.stop() } }
     val localizedContext = remember(baseContext, state.localeOverride) {
         baseContext.withLocaleOverride(state.localeOverride)
     }
@@ -66,6 +79,31 @@ fun FeuTimerAppRoot(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (state.screen == TvScreen.QUICK_TIMERS && timeFaceFocused) return@onPreviewKeyEvent false
+                val horizontal = event.key == Key.DirectionLeft || event.key == Key.DirectionRight
+                if (horizontal && event.type == KeyEventType.KeyUp) {
+                    scan.stop()
+                    return@onPreviewKeyEvent false
+                }
+                if (horizontal && event.type == KeyEventType.KeyDown) {
+                    // The initial press moves spatially. Ignore OS repeats, including a held key
+                    // that opened this screen from the clock.
+                    if (event.nativeKeyEvent.repeatCount > 0) return@onPreviewKeyEvent true
+                    scan.stop()
+                    if (state.screen != TvScreen.CLOCK && windowFocused) {
+                        val dir = if (event.key == Key.DirectionRight) FocusDirection.Next else FocusDirection.Previous
+                        scan.job = scope.launch {
+                            delay(android.view.ViewConfiguration.getLongPressTimeout().toLong())
+                            while (true) {
+                                focusManager.moveFocus(dir)
+                                delay(280)
+                            }
+                        }
+                    }
+                }
+                false
+            }
             .onKeyEvent { event ->
                 // Never-trapped D-pad: if a directional move has no geometric candidate (e.g. lone Back button),
                 // fall back to sequential traversal so every control is always reachable.
@@ -123,31 +161,30 @@ fun FeuTimerAppRoot(
                         ) { targetScreen ->
                             when (targetScreen) {
                                 TvScreen.CLOCK -> ClockScreen(
-                                    firstPreset = state.presetSlots.first(),
-                                    voiceEnabled = state.soundPreferences.voiceEnabled,
-                                    onFive = { controller.startRound(RoundConfig.single(300)) },
-                                    onVoice = controller::toggleVoiceEnabled,
-                                    onQuick = controller::openQuickTimers,
-                                    onPreset = { controller.startPresetRound(state.presetSlots.first().config) },
-                                    onWatch = controller::startStopwatch,
-                                    onCompetition = controller::openScoreboard,
-                                    onIntervals = { controller.startRound(RoundConfig(8, 180, 120)) },
-                                    onRepeat = if (state.lastSessionConfig != null) controller::repeatLastSession else null,
-                                    onSave = { saveFromClock = true; controller.openRounds() },
+                                    pressedShortcut = pressedHomeShortcut,
+                                    onShortcut = controller::runHomeShortcut,
                                     use24HourClock = state.soundPreferences.use24HourClock
                                 )
 
                                 TvScreen.QUICK_TIMERS -> QuickTimersScreen(
+                                    onRepeat = if (state.lastSessionConfig != null) controller::repeatLastSession else null,
+                                    workSeconds = state.quickSeconds,
+                                    onFocusTime = { timeFaceFocused = it },
+                                    onAdd = controller::addQuickSeconds,
+                                    onSecond = controller::advanceQuickSecond,
+                                    onMinute = controller::adjustQuickMinute,
+                                    onStart = controller::startQuickCustom,
+                                    endless = state.quickOptions.endless,
+                                    onEndless = controller::toggleQuickEndless,
+                                    onRestMinute = controller::adjustQuickRestMinute,
                                     quickRepeat = state.quickOptions.repeat,
                                     quickRestSeconds = state.quickOptions.restSeconds,
                                     onAdjustRepeat = controller::adjustQuickRepeat,
                                     onAdjustRest = controller::adjustQuickRest,
-                                    onSelectQuickTimer = controller::startQuickTimer,
                                     onStartStopwatch = controller::startStopwatch
                                 )
 
                                 TvScreen.ROUNDS -> RoundsScreen(
-                                    startAtSave = saveFromClock,
                                     presetSlots = state.presetSlots,
                                     customBuilder = state.customBuilder,
                                     onSelectPreset = controller::startPresetRound,
@@ -205,19 +242,27 @@ fun FeuTimerAppRoot(
                             lanRefereeUrl = state.lanRefereeUrl,
                             lanConnectedClients = state.lanConnectedClients,
                             savedResultsCount = state.matchResults.size,
-                            onOpenRounds = { saveFromClock = false; controller.openRounds() },
-                            onOpenSettings = controller::openSettings,
+                            pressedHomeShortcut = pressedHomeShortcut,
+                            onHomeShortcut = controller::runHomeShortcut,
                             onTogglePlayPause = controller::togglePlayPause,
                             onRestartPhase = controller::restartActivePhase,
                             onAdjustTime = controller::adjustActiveTime,
                             onSkipPhase = controller::skipActivePhase,
-                            onBackToClock = controller::returnToClock,
-                            onToggleSound = controller::toggleSoundEnabled
+                            onBackToClock = { controller.onBackPressed() },
+                            onToggleVoice = controller::toggleVoiceEnabled
                         )
                     }
                 }
             }
         }
+    }
+}
+
+private class HorizontalFocusScan {
+    var job: Job? = null
+    fun stop() {
+        job?.cancel()
+        job = null
     }
 }
 

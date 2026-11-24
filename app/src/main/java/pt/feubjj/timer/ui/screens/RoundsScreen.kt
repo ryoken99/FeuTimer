@@ -82,13 +82,11 @@ import pt.feubjj.timer.ui.theme.FeuTypography
 
 private enum class RoundSection(val label: Int) {
     SAVED(R.string.round_section_saved),
-    CUSTOM(R.string.round_section_custom),
     CREATE(R.string.create_workout)
 }
 
 @Composable
 fun RoundsScreen(
-    startAtSave: Boolean = false,
     presetSlots: List<RoundPresetOption>,
     customBuilder: CustomRoundBuilderState,
     onSelectPreset: (RoundConfig) -> Unit,
@@ -103,8 +101,7 @@ fun RoundsScreen(
     onStartCustom: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var section by remember { mutableStateOf(if (startAtSave) RoundSection.CREATE else RoundSection.SAVED) }
-    val tabFocus = remember { RoundSection.entries.associateWith { FocusRequester() } }
+    var section by remember { mutableStateOf(RoundSection.SAVED) }
     var enterPanel by remember { mutableIntStateOf(0) }
     var workoutPage by remember { mutableIntStateOf(0) }
     val pageCount = (presetSlots.size + 7) / 8
@@ -115,13 +112,11 @@ fun RoundsScreen(
     val workMinusFocus = remember { FocusRequester() }
     val restMinusFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
-    val firstSave = remember { FocusRequester() }
     LaunchedEffect(enterPanel) {
-        if (startAtSave && enterPanel == 0) { firstSave.requestFocus(); return@LaunchedEffect }
-        if (enterPanel == 0) tabFocus.getValue(section).requestFocus()
+        if (enterPanel == 0 && section == RoundSection.SAVED) firstPresetFocus.requestFocus()
         else when (section) {
             RoundSection.SAVED -> firstPresetFocus.requestFocus()
-            RoundSection.CUSTOM, RoundSection.CREATE -> playFocus.requestFocus()
+            RoundSection.CREATE -> playFocus.requestFocus()
         }
     }
 
@@ -172,18 +167,12 @@ fun RoundsScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(RoundSection.SAVED, RoundSection.CUSTOM).forEach { tab ->
-                OptionPill(
-                    label = stringResource(tab.label),
-                    selected = tab == section || (tab == RoundSection.SAVED && section == RoundSection.CREATE),
-                    onClick = {
-                        section = tab
-                        enterPanel++
-                    },
-                    modifier = Modifier.focusRequester(tabFocus.getValue(tab))
-                )
-            }
+            OptionPill(stringResource(R.string.round_section_saved), section == RoundSection.SAVED, {
+                section = RoundSection.SAVED
+                enterPanel++
+            })
             if (section == RoundSection.SAVED) {
+                Text(stringResource(R.string.hold_save), color = FeuColors.GiWhite, modifier = Modifier.align(Alignment.CenterVertically))
                 Spacer(Modifier.weight(1f))
                 OptionPill(stringResource(R.string.create_workout), false, onClick = {
                     section = RoundSection.CREATE
@@ -215,6 +204,7 @@ fun RoundsScreen(
                                 preset = preset,
                                 previewConfig = if (previewSlot == index) builderConfig else null,
                                 savedFlash = savedSlot == index,
+                                onHold = { pendingSaveSlot = index },
                                 onClick = { onSelectPreset(preset.config) },
                                 modifier = Modifier.weight(1f).then(
                                     if (position == 0) Modifier.focusRequester(firstPresetFocus) else Modifier
@@ -225,7 +215,7 @@ fun RoundsScreen(
                     }
                 }
             }
-            RoundSection.CUSTOM, RoundSection.CREATE -> Row(
+            RoundSection.CREATE -> Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -261,7 +251,6 @@ fun RoundsScreen(
                     modifier = Modifier.weight(1f)
                 )
                 CustomStartAndSaveColumn(
-                    firstSave = firstSave,
                     slotCount = presetSlots.size,
                     creating = section == RoundSection.CREATE,
                     onNewWorkout = { pendingSaveSlot = presetSlots.size },
@@ -678,6 +667,7 @@ private fun PresetRoundCard(
     preset: RoundPresetOption,
     previewConfig: RoundConfig?,
     savedFlash: Boolean,
+    onHold: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -694,6 +684,7 @@ private fun PresetRoundCard(
 
     TvFocusableSurface(
         onClick = onClick,
+        onHold = onHold,
         shape = RoundedCornerShape(12.dp),
         containerColor = FeuColors.CardSurface,
         focusedContainerColor = Color.White.copy(alpha = 0.20f),
@@ -949,12 +940,14 @@ private fun CustomDurationColumn(
                 MiniTagButton(
                     label = "+1m",
                     isActive = false,
+                    repeatOnHold = true,
                     onClick = onPlusMinute,
                     modifier = Modifier.focusProperties { down = minusFocus }
                 )
                 MiniTagButton(
                     label = "−1m",
                     isActive = false,
+                    repeatOnHold = true,
                     onClick = onMinusMinute,
                     modifier = Modifier.focusProperties {
                         down = minusFocus
@@ -1006,6 +999,7 @@ private fun PlusMinusRow(
     ) {
         TvFocusableSurface(
             onClick = onPlus,
+            repeatOnHold = true,
             shape = RoundedCornerShape(8.dp),
             containerColor = FeuColors.CardSurfaceHover,
             focusedContainerColor = FeuColors.GiWhite,
@@ -1024,6 +1018,7 @@ private fun PlusMinusRow(
         }
         TvFocusableSurface(
             onClick = onMinus,
+            repeatOnHold = true,
             shape = RoundedCornerShape(8.dp),
             containerColor = FeuColors.CardSurfaceHover,
             focusedContainerColor = FeuColors.GiWhite,
@@ -1047,7 +1042,6 @@ private fun PlusMinusRow(
 
 @Composable
 private fun CustomStartAndSaveColumn(
-    firstSave: FocusRequester,
     slotCount: Int,
     creating: Boolean,
     onNewWorkout: () -> Unit,
@@ -1124,7 +1118,6 @@ private fun CustomStartAndSaveColumn(
             )
             for (slot in 0 until slotCount) {
                 MiniTagButton(
-                    modifier = if (slot == 0) Modifier.focusRequester(firstSave) else Modifier,
                     label = "${slot + 1}",
                     isActive = false,
                     onClick = { onSaveSlot(slot) },
@@ -1137,6 +1130,7 @@ private fun CustomStartAndSaveColumn(
 
 @Composable
 private fun MiniTagButton(
+    repeatOnHold: Boolean = false,
     label: String,
     isActive: Boolean,
     onClick: () -> Unit,
@@ -1145,6 +1139,7 @@ private fun MiniTagButton(
 ) {
     TvFocusableSurface(
         onClick = onClick,
+        repeatOnHold = repeatOnHold,
         onFocusChange = onFocusChange,
         shape = RoundedCornerShape(6.dp),
         containerColor = if (isActive) FeuColors.CrownGold.copy(alpha = 0.30f) else FeuColors.CardSurfaceHover,

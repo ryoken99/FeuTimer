@@ -350,6 +350,7 @@ private fun ScoreQuickBtn(
     onClick: () -> Unit
 ) {
     TvFocusableSurface(
+        repeatOnHold = true,
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
         containerColor = FeuColors.CardSurfaceHover,
@@ -376,6 +377,7 @@ private fun ScoreQuickBtn(
 @Composable
 private fun ScoreStepBtn(label: String, onClick: () -> Unit) {
     TvFocusableSurface(
+        repeatOnHold = true,
         onClick = onClick,
         shape = RoundedCornerShape(9.dp),
         containerColor = FeuColors.CardSurfaceHover,

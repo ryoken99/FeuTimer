@@ -26,6 +26,11 @@
     return sec >= 1 && sec <= 10 ? `COUNT_${sec}` : 'COUNTDOWN_PIP';
   }
 
+  function stepFiveSeconds(seconds, increase, minimum) {
+    const next = increase ? Math.floor(seconds / 5) + 1 : Math.ceil(seconds / 5) - 1;
+    return clamp(next * 5, minimum, MAX_SECONDS);
+  }
+
   const CustomBuilder = {
     create(initial) {
       const isEndless = initial?.repeat === -1;
@@ -33,7 +38,7 @@
       return {
         repeat: rep,
         lastFiniteRepeat: isEndless ? clamp(initial?.lastFiniteRepeat ?? 5, MIN_REPEAT, MAX_REPEAT) : rep,
-        workSeconds: clamp(initial?.workSeconds ?? 60, MIN_SMALL_WORK, MAX_SECONDS),
+        workSeconds: clamp(initial?.workSeconds ?? 60, 1, MAX_SECONDS),
         restSeconds: clamp(initial?.restSeconds ?? 30, MIN_REST, MAX_SECONDS),
       };
     },
@@ -60,18 +65,14 @@
       return { ...state, workSeconds: clamp(state.workSeconds + delta, Math.min(state.workSeconds, MIN_WORK), MAX_SECONDS) };
     },
     adjustWorkSmart(state, increase) {
-      const step = (increase && state.workSeconds < 30) || (!increase && state.workSeconds <= 30) ? 5 : 10;
-      const delta = increase ? step : -step;
-      return { ...state, workSeconds: clamp(state.workSeconds + delta, MIN_SMALL_WORK, MAX_SECONDS) };
+      return { ...state, workSeconds: stepFiveSeconds(state.workSeconds, increase, MIN_SMALL_WORK) };
     },
     adjustRest(state, increase, step = 10) {
       const delta = increase ? step : -step;
       return { ...state, restSeconds: clamp(state.restSeconds + delta, MIN_REST, MAX_SECONDS) };
     },
     adjustRestSmart(state, increase) {
-      const step = (increase && state.restSeconds < 30) || (!increase && state.restSeconds <= 30) ? 5 : 10;
-      const delta = increase ? step : -step;
-      return { ...state, restSeconds: clamp(state.restSeconds + delta, MIN_REST, MAX_SECONDS) };
+      return { ...state, restSeconds: stepFiveSeconds(state.restSeconds, increase, MIN_REST) };
     },
     totalSeconds(state) {
       if (state.repeat === -1) return 0;

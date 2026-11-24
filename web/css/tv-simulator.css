@@ -369,6 +369,12 @@ body.dpad-mode .tv-focusable.is-dpad-focused {
 }
 
 /* ---------------------------------------------------------------- Screen 1: Idle Wall Clock */
+#scan-hint {
+  margin-top: 6px;
+  color: var(--text-muted, #bbb);
+  font-size: 14px;
+}
+
 .wall-eyebrow {
   font-size: 19px;
   font-weight: 900;
@@ -397,7 +403,7 @@ body.dpad-mode .tv-focusable.is-dpad-focused {
   font-size: 124px;
 }
 
-/* ---------------------------------------------------------------- Screen 2: 3x5 Quick Timers + Stopwatch */
+/* ---------------------------------------------------------------- Screen 2: Quick Timers + Stopwatch */
 .quick-topbar {
   width: 100%;
   display: flex;
@@ -464,23 +470,7 @@ body.dpad-mode .tv-focusable.is-dpad-focused {
   display: grid;
   place-items: center;
 }
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 11px;
-  width: 100%;
-}
-.quick-btn {
-  height: 66px;
-  display: grid;
-  place-items: center;
-  background: var(--card-surface);
-  border: 1.5px solid rgba(255, 255, 255, 0.54);
-  border-radius: 10px;
-  font-size: 32px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
+
 
 /* ---------------------------------------------------------------- Screen 3: Saveable Presets + Templates + Custom Builder */
   .rounds-wrap {
@@ -1308,7 +1298,7 @@ body.dpad-mode .media-circle--prominent.is-dpad-focused {
   display: none;
   place-items: center;
 }
-body.is-tv-only .floating-tv-toggle {
+body.is-tv-only:not(.native-tv) .floating-tv-toggle {
   display: grid;
 }
 
@@ -1455,6 +1445,55 @@ body.is-tv-only .floating-tv-toggle {
 .rounds-wrap:not([data-section="presets"]) #workout-pages, #workout-pages:empty { display: none; }
 .rounds-preview .save-slots-row { max-width: 42%; overflow-x: auto; }
 
-#screen-clock .wall-digits { font-size: 96px; }
-#home-actions { display: grid; grid-template-columns: repeat(3, 230px); gap: 4px 6px; }
-#home-actions .opt-pill { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#screen-quick .quick-options[hidden] { display: none; }
+#screen-quick .quick-topbar { gap: 12px; }
+#screen-quick h2 { margin-right: auto; }
+.time-face { display: flex; justify-content: center; align-items: center; gap: 16px; width: 100%; border-radius: 14px; background: var(--card-surface); color: var(--gi-white); font-size: 72px; line-height: 1; padding: 10px; font-variant-numeric: tabular-nums; }
+.time-face span { font-size: 26px; }
+#time-guide { font-size: 14px; margin: 5px 0; }
+.time-steps { display: flex; justify-content: center; gap: 8px; margin: 4px 0 8px; }
+.time-steps .opt-pill { min-width: 84px; }
+#screen-quick .quick-options { margin: 6px 0 0; gap: 8px; }
+
+body.dpad-mode .tv-focusable.entry-ready { outline: 4px solid var(--crown-gold); outline-offset: 3px; }
+
+#screen-clock { flex-direction: column; justify-content: center; gap: 14px; padding: 0 36px; }
+/* Wheel on the left, the whole clock block fills the rest of the row (digits scale to the width left over) */
+.home-main { width: 100%; display: flex; align-items: center; justify-content: center; }
+/* The clock takes whatever width the wheel (and its localized labels) leaves, and its digits scale to fit: never cut off */
+.wall-col { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; min-width: 0; container-type: inline-size; }
+#screen-clock .wall-digits { font-size: min(134px, 15cqw); white-space: nowrap; }
+#screen-clock .wall-digits.is-12h { font-size: min(104px, 11.7cqw); }
+#screen-clock .wall-date { font-size: min(20px, 2.4cqw); white-space: nowrap; }
+
+/* Home remote wheel: one unified control mirroring the D-pad (arrows + OK are direct shortcuts) */
+#screen-clock { position: relative; }
+/* Wheel tucked into the bottom-left corner, clear of the centred clock */
+.home-wheel { position: absolute; left: 36px; bottom: 6px; }
+.hw-disc { width: 148px; height: 148px; filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.55)); }
+.hw-disc svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.hw-wedge { fill: rgba(255, 255, 255, 0.07); stroke: rgba(255, 255, 255, 0.34); stroke-width: 1.5; cursor: pointer; transition: fill 0.12s, stroke 0.12s; }
+.hw-center { fill: #151212; stroke: var(--feu-red); stroke-width: 3; cursor: pointer; transition: fill 0.12s; }
+.hw-wedge:hover, .hw-wedge.is-pressed { fill: var(--feu-red); stroke: #fff; }
+.hw-center:hover, .hw-center.is-pressed { fill: var(--feu-red); }
+.hw-chevron { fill: var(--crown-gold); pointer-events: none; }
+.hw-icon { color: var(--gi-white); pointer-events: none; }
+.hw-icon--ok { color: var(--gi-white); }
+.hw-ok-text { font-size: 23px; font-weight: 900; letter-spacing: 0.06em; fill: var(--gi-white); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+/* Legend: names what each wheel direction does, one row along the bottom */
+.hw-legend { display: flex; justify-content: flex-start; gap: 9px; align-items: center; white-space: nowrap; min-width: 0; }
+.hw-key { display: flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 900; letter-spacing: 0.03em; color: var(--gi-white); cursor: pointer; transition: color 0.12s; }
+.hw-key i { font-style: normal; font-size: 12px; font-weight: 900; color: var(--crown-gold); letter-spacing: 0.05em; }
+.hw-key__icon { width: 20px; height: 20px; flex: none; }
+.hw-key.is-pressed { color: var(--crown-gold); }
+
+button.hw-key { border: 0; padding: 0; background: transparent; font-family: inherit; }
+#scan-hint { max-width: 65%; text-align: center; }
+
+.field-edit { background: transparent; border: 1px solid var(--hairline-strong); border-radius: 6px; color: inherit; font-family: inherit; padding: 0 6px; }
+#field-edit-guide { text-align: center; color: var(--gi-ivory); font-size: 15px; }
+
+.rounds-wrap[data-section="create"] .builder-col .stepper-pair,
+.rounds-wrap[data-section="create"] .builder-col .mini-tags { display: none; }
+.edit-controls { display: inline-flex; align-items: center; gap: 4px; }
+.edit-controls [data-edit-pointer] { color: inherit; background: transparent; border: 0; font-size: 22px; padding: 2px 5px; cursor: pointer; }

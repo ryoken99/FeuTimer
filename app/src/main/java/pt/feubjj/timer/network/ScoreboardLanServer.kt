@@ -27,11 +27,19 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  * Portrait Referee Console and control athlete names, points, match clock, and saved results live.
  */
 class ScoreboardLanServer(
-    private val controller: FeuTimerSessionController,
+    private val changes: kotlinx.coroutines.flow.Flow<*>,
+    private val snapshot: () -> String,
+    private val command: (String) -> String,
+    private val lanStatus: (String?, Int) -> Unit,
     private val refereeHtmlProvider: () -> ByteArray,
     private val scope: CoroutineScope,
     private val preferredPorts: List<Int> = listOf(7777, 7778, 7779, 8777, 0)
 ) {
+    constructor(controller: FeuTimerSessionController, refereeHtmlProvider: () -> ByteArray,
+                scope: CoroutineScope, preferredPorts: List<Int> = listOf(7777, 7778, 7779, 8777, 0)) :
+        this(controller.uiState, controller::toRefereeStateJson, controller::handleRefereeJsonCommand,
+            controller::updateLanServerStatus, refereeHtmlProvider, scope, preferredPorts)
+
     private var serverSocket: ServerSocket? = null
     private var acceptJob: Job? = null
     private var broadcastJob: Job? = null
@@ -77,9 +85,9 @@ class ScoreboardLanServer(
         // Broadcast every state change immediately to all connected phones (< 5 ms)
         broadcastJob = scope.launch(Dispatchers.IO) {
             var lastPayload = ""
-            controller.uiState.collect {
+            changes.collect {
                 if (wsClients.isEmpty()) return@collect
-                val json = controller.toRefereeStateJson()
+                val json = snapshot()
                 if (json != lastPayload) {
                     lastPayload = json
                     broadcastTextFrame(json)
@@ -113,7 +121,7 @@ class ScoreboardLanServer(
         if (boundPort <= 0) return
         val ip = LanAddressResolver.findLocalIpv4Address()
         val displayUrl = if (ip != null) "$ip:$boundPort" else null
-        controller.updateLanServerStatus(url = displayUrl, connectedClients = wsClients.size)
+        lanStatus(displayUrl, wsClients.size)
     }
 
     private fun handleSocket(socket: Socket) {
@@ -164,7 +172,7 @@ class ScoreboardLanServer(
             if (method == "POST" && rawPath == "/api/cmd") {
                 val contentLen = headers["content-length"]?.toIntOrNull()?.coerceIn(0, 65536) ?: 0
                 val bodyBytes = readExactBytes(input, contentLen)
-                val nextJson = controller.handleRefereeJsonCommand(bodyBytes.toString(Charsets.UTF_8))
+                val nextJson = command(bodyBytes.toString(Charsets.UTF_8))
                 broadcastTextFrame(nextJson)
                 writeHttpResponse(output, "200 OK", "application/json; charset=utf-8", nextJson.toByteArray(Charsets.UTF_8))
                 socket.close()
@@ -173,7 +181,7 @@ class ScoreboardLanServer(
 
             // 4. Current state snapshot (`GET /api/state`)
             if (method == "GET" && rawPath == "/api/state") {
-                val json = controller.toRefereeStateJson()
+                val json = snapshot()
                 writeHttpResponse(output, "200 OK", "application/json; charset=utf-8", json.toByteArray(Charsets.UTF_8))
                 socket.close()
                 return
@@ -214,7 +222,7 @@ class ScoreboardLanServer(
 
         try {
             // Immediately push full current state with zero delay
-            client.sendText(controller.toRefereeStateJson())
+            client.sendText(snapshot())
 
             while (!socket.isClosed) {
                 val b0 = input.read()
@@ -255,7 +263,7 @@ class ScoreboardLanServer(
                     0x9 -> client.sendControlFrame(0xA, payload) // Ping -> Pong
                     0x1 -> {
                         val text = payload.toString(Charsets.UTF_8)
-                        val updatedState = controller.handleRefereeJsonCommand(text)
+                        val updatedState = command(text)
                         broadcastTextFrame(updatedState)
                     }
                 }

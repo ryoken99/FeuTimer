@@ -12,15 +12,23 @@
 
   const STORAGE_KEY = 'feu.tv.simulator.v3';
 
-  const roundSections = ['presets', 'builder'];
+  const roundSections = ['presets'];
   let roundSection = 'presets';
   let workoutPage = 0;
+  let clockMinuteScan = false;
+  let sessionOrigin = 'CLOCK';
+  let timeOptionsOpen = false;
   const workoutsPerPage = 8;
 
   function loadPersisted() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      if (raw) return JSON.parse(raw);
+      if (!window.FeuTv) return null;
+      const legacy = JSON.parse(FeuTv.legacySettings());
+      const slots = Presets.roundPresets.map(p => ({ ...p }));
+      for (const [i, slot] of Object.entries(legacy.customizedSlots || {})) slots[Number(i)] = slot;
+      return { ...legacy, presetSlots: slots };
     } catch (_) {
       return null;
     }
@@ -29,16 +37,45 @@
   function savePersisted(data) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (_) {}
+      return true;
+    } catch (_) { return false; }
   }
 
   const saved = loadPersisted();
+  let quickSeconds = Number.isInteger(saved?.quickSeconds) && saved.quickSeconds > 0 && saved.quickSeconds <= 3600 ? saved.quickSeconds : 300;
+
+  let nextRoundSeconds = 0;
+
+  let lastScoreChange = null;
+
+  function changeScore(side, field, value, exact = false) {
+    if (!['points', 'advantages', 'penalties'].includes(field)) return;
+    const key = side === 'B' ? 'b' : 'a';
+    const before = state.scoreboard[key][field];
+    state.scoreboard = exact ? Scoreboard.setExact(state.scoreboard, side, field, value)
+      : Scoreboard.adjust(state.scoreboard, side, field, value);
+    if (state.scoreboard[key][field] !== before) lastScoreChange = {side, field, before};
+  }
+
+  function loadWorkoutSlots(slots) {
+    if (!Array.isArray(slots)) return Presets.roundPresets.map(p => ({ ...p }));
+    const result = slots.slice();
+    const oldDrill = result[2];
+    if (oldDrill?.id === 'specific_10x2' && !oldDrill.customName && oldDrill.repeat === 10 &&
+        oldDrill.workSeconds === 120 && oldDrill.restSeconds === 180) result[2] = { ...Presets.roundPresets[2] };
+    const oldKids = result[3];
+    if (oldKids?.id === 'kids_3x3' && !oldKids.customName && oldKids.repeat === 3 &&
+        oldKids.workSeconds === 180 && oldKids.restSeconds === 30) {
+      if (result.length === 4) result.pop();
+      else result[3] = null;
+    }
+    return result;
+  }
 
   const state = {
     locale: saved?.locale || 'pt-PT',
     screen: 'CLOCK', // CLOCK | QUICK_TIMERS | ROUNDS | SCOREBOARD | SETTINGS | ACTIVE_TIMER
     soundPreferences: {
-      soundEnabled: true,
       voiceEnabled: true,
       warnHalfway: true,
       warn2m: false,
@@ -50,13 +87,17 @@
       soundPack: 'CLASSIC_HORN',
       use24HourClock: true,
       ...(saved?.soundPreferences || {}),
+      soundEnabled: true,
     },
-    presetSlots: saved?.presetSlots || Presets.roundPresets.map((p) => ({ ...p })),
+    presetSlots: loadWorkoutSlots(saved?.presetSlots),
+    workoutUndo: Array.isArray(saved?.workoutUndo) ? saved.workoutUndo.filter(x =>
+      x && Number.isInteger(x.slot) && x.slot >= 0 && x.before && x.after).slice(-20) : [],
     customBuilder: CustomBuilder.create(saved?.customRound),
     lastSessionConfig: saved?.lastSessionConfig || { repeat: 5, workSeconds: 300, restSeconds: 60 },
     timer: TimerEngine.idle(),
     scoreboard: Scoreboard.create(saved?.scoreboard),
     matchResults: saved?.matchResults || [],
+    quickEndless: saved?.quickEndless === true,
     quickRepeat: Math.min(99, Math.max(1, saved?.quickRepeat || 1)),
     quickRestSeconds: Math.min(3600, Math.max(0, saved?.quickRestSeconds ?? 60)),
     scoreboardDurationSeconds: 300,
@@ -78,14 +119,17 @@
   }
 
   function persistSettings() {
-    savePersisted({
+    return savePersisted({
       locale: state.locale,
       soundPreferences: state.soundPreferences,
       presetSlots: state.presetSlots,
+      workoutUndo: state.workoutUndo,
       customRound: state.customBuilder,
       lastSessionConfig: state.lastSessionConfig,
       scoreboard: state.scoreboard,
       matchResults: state.matchResults,
+      quickSeconds,
+      quickEndless: state.quickEndless,
       quickRepeat: state.quickRepeat,
       quickRestSeconds: state.quickRestSeconds,
     });
@@ -124,6 +168,10 @@
   }
 
   function pushTvStateToHub() {
+    if (window.FeuTv) {
+      FeuTv.publishState(JSON.stringify(buildRefereeStateSnapshot()));
+      return;
+    }
     if (tvWs && tvWs.readyState === WebSocket.OPEN) {
       try {
         tvWs.send(JSON.stringify({ type: 'tv_state', state: buildRefereeStateSnapshot() }));
@@ -151,12 +199,13 @@
       state.scoreboard = Scoreboard.setCategory(state.scoreboard, cmdObj.category);
     } else if (cmd === 'score_delta') {
       ensureSb();
-      state.scoreboard = Scoreboard.adjust(state.scoreboard, side, cmdObj.field || 'points', Number(cmdObj.delta) || 0);
+      changeScore(side, cmdObj.field || 'points', Number(cmdObj.delta) || 0);
     } else if (cmd === 'score_set') {
       ensureSb();
-      state.scoreboard = Scoreboard.setExact(state.scoreboard, side, cmdObj.field || 'points', Number(cmdObj.value) || 0);
+      changeScore(side, cmdObj.field || 'points', Number(cmdObj.value) || 0, true);
     } else if (cmd === 'swap_sides') {
       ensureSb();
+      if (lastScoreChange) lastScoreChange.side = lastScoreChange.side === 'A' ? 'B' : 'A';
       state.scoreboard = Scoreboard.swapSides(state.scoreboard);
     } else if (cmd === 'play_pause') {
       ensureSb();
@@ -171,6 +220,7 @@
       selectScoreboardDuration(Number(cmdObj.seconds) || 300);
     } else if (cmd === 'reset_match') {
       ensureSb();
+      lastScoreChange = null;
       state.scoreboard = Scoreboard.reset(Boolean(cmdObj.keepNames), state.scoreboard);
       selectScoreboardDuration(state.scoreboardDurationSeconds);
     } else if (cmd === 'buzzer') {
@@ -221,6 +271,32 @@
   window.addEventListener('keydown', announceActiveTv, true);
 
   function connectTvHub() {
+    if (window.FeuTv) {
+      window.feuCommand = applyRemoteRefereeCommand;
+      window.feuLan = (url, clients) => {
+        if (url) state.lanUrl = url;
+        state.lanConnectedClients = clients;
+        renderBottomBar();
+      };
+      window.feuMedia = action => {
+        if (action === 'stop') return returnToClock();
+        if (!['SCOREBOARD','ACTIVE_TIMER'].includes(state.screen)) return;
+        if (action === 'previous_round') {
+          if (state.screen === 'ACTIVE_TIMER') {
+            state.timer = TimerEngine.previousRound(state.timer);
+            renderAll();
+          }
+          return;
+        }
+        if (action === 'resume' || action === 'pause') {
+          if ((state.timer.phase === 'PAUSED') === (action === 'resume')) togglePlayPause();
+        } else triggerBarAction(action);
+      };
+      Audio.unlock();
+      pushTvStateToHub();
+      FeuTv.ready();
+      return;
+    }
     if (window.location.protocol === 'file:') return;
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     try {
@@ -282,7 +358,7 @@
     frameTimerId = null;
   }
   let lastTickAnchorMs = 0;
-  let finishReturnDeadlineMs = null;
+
 
   function playCue(cue) {
     if (!cue || !isAudioLeader || !state.soundPreferences.soundEnabled) return;
@@ -293,7 +369,7 @@
   function startTicker(expectedScreen) {
     stopTicker();
     lastTickAnchorMs = performance.now();
-    finishReturnDeadlineMs = null;
+
 
     const stepFrame = (nowMs) => {
       if (state.screen !== expectedScreen) {
@@ -302,15 +378,6 @@
       }
 
       if (state.timer.phase === 'FINISHED') {
-        if (expectedScreen === 'ACTIVE_TIMER') {
-          if (finishReturnDeadlineMs === null) {
-            finishReturnDeadlineMs = nowMs + 3000 / state.speedMultiplier;
-          } else if (nowMs >= finishReturnDeadlineMs) {
-            returnToClock();
-            return;
-          }
-          scheduleFrame(stepFrame);
-        }
         return;
       }
 
@@ -330,6 +397,7 @@
         if (expectedScreen === 'ACTIVE_TIMER') {
           renderActiveTimer();
           renderBottomBar();
+          if (state.timer.phase === 'FINISHED') applyDomFocus(els.viewport.querySelector('[data-bar-action="next_round"]'));
           updateAmbientTheme();
         } else if (expectedScreen === 'SCOREBOARD') {
           renderScoreboardScreen();
@@ -349,6 +417,7 @@
   function openQuickTimers() {
     stopTicker();
     Audio.stopAll();
+    timeOptionsOpen = false;
     state.screen = 'QUICK_TIMERS';
     state.focusZone = 'CONTENT';
     state.contentFocusIndex = 0;
@@ -422,6 +491,7 @@
 
   // Quick time -> config honouring the chosen repeat count and rest (1 = plain single countdown)
   function quickConfigFor(seconds) {
+    if (state.quickEndless) return {repeat: -1, workSeconds: seconds, restSeconds: state.quickRestSeconds};
     if (state.quickRepeat <= 1) return { repeat: 0, workSeconds: seconds, restSeconds: 0 };
     return { repeat: state.quickRepeat, workSeconds: seconds, restSeconds: state.quickRestSeconds };
   }
@@ -437,6 +507,10 @@
     stopTicker();
     Audio.stopAll();
 
+    if (state.screen !== 'ACTIVE_TIMER') sessionOrigin = state.screen;
+    if (!config.isStopwatch && config.workSeconds > 0) {
+      nextRoundSeconds = config.workSeconds;
+    }
     state.lastSessionConfig = { ...config };
     persistSettings();
 
@@ -451,7 +525,20 @@
     startTicker('ACTIVE_TIMER');
   }
 
+  function repeatFromClock() {
+    openQuickTimers();
+    startSession(state.lastSessionConfig);
+  }
+
   function togglePlayPause() {
+    if (state.screen === 'CLOCK' && !isModalOpen()) {
+      repeatFromClock();
+      return;
+    }
+    if (state.screen === 'QUICK_TIMERS' && !isModalOpen()) {
+      startQuickSelection();
+      return;
+    }
     if (state.screen !== 'ACTIVE_TIMER' && state.screen !== 'SCOREBOARD') return;
     Audio.unlock();
 
@@ -578,7 +665,9 @@
     const cur = metricsOf(existing || state.customBuilder);
     const next = metricsOf(state.customBuilder);
     state.pendingSaveSlot = slotIdx;
-    document.getElementById('modal-title').textContent = existing ? I18n.t(L, 'save_dialog_title', { slot: slotIdx + 1 }) : I18n.t(L, 'create_workout');
+    document.getElementById('modal-title').textContent = existing
+      ? I18n.t(L, 'save_dialog_title', { slot: slotIdx + 1 }) + ' · ' + (existing.customName || I18n.t(L, existing.titleKey))
+      : I18n.t(L, 'create_workout');
     document.getElementById('modal-body').innerHTML = diffRows(L, cur, next) +
       (existing ? `<div class="modal-hint">${I18n.t(L, 'save_dialog_hint')}</div>` : '');
     document.getElementById('slot-name-label').textContent = I18n.t(L, 'save_name');
@@ -593,8 +682,11 @@
   function closeModal() {
     const m = document.getElementById('modal-layer');
     if (m) m.hidden = true;
+    const slot = state.pendingSaveSlot;
     state.pendingSaveSlot = null;
-    leaveSaveFlow();
+    if (roundSection === 'presets') {
+      applyDomFocus(els.presetsRow.querySelector(`[data-preset-idx="${slot}"]`));
+    } else leaveSaveFlow();
   }
 
   function leaveSaveFlow() {
@@ -618,7 +710,8 @@
   function confirmSaveToSlot() {
     const idx = state.pendingSaveSlot;
     if (idx == null) return closeModal();
-    const isNew = idx === state.presetSlots.length;
+    state.workoutUndo = state.workoutUndo.filter(x => x.slot !== idx);
+    const isNew = !state.presetSlots[idx];
     state.presetSlots[idx] = {
       titleKey: 'new_workout',
       ...state.presetSlots[idx],
@@ -636,11 +729,46 @@
     renderRoundsScreen();
     const card = els.presetsRow.querySelector(`[data-preset-idx="${idx}"]`);
     if (card) {
-      if (isNew) applyDomFocus(card);
+      if (roundSection === 'presets') applyDomFocus(card);
       card.classList.add('is-saved-flash');
       setTimeout(() => card.classList.remove('is-saved-flash'), 1400);
     }
     showToast(I18n.t(state.locale, 'save_done', { slot: idx + 1 }));
+  }
+
+  function quickSaveWorkout(slot) {
+    const before = state.presetSlots[slot];
+    if (!before) return;
+    const {repeat, workSeconds, restSeconds} = state.customBuilder;
+    const after = {...before, repeat, workSeconds, restSeconds};
+    const history = state.workoutUndo;
+    state.workoutUndo = [...history, {slot, before, after}].slice(-20);
+    state.presetSlots[slot] = after;
+    if (!persistSettings()) {
+      state.workoutUndo = history;
+      state.presetSlots[slot] = before;
+      showToast(I18n.t(state.locale, 'write_failed'), 'warn');
+      return;
+    }
+    renderRoundsScreen();
+    applyDomFocus(els.presetsRow.querySelector('[data-preset-idx="' + slot + '"]'));
+    showToast(I18n.t(state.locale, 'save_done', {slot:slot+1}));
+  }
+
+  function undoQuickSave() {
+    const change = state.workoutUndo[state.workoutUndo.length - 1];
+    if (!change || JSON.stringify(state.presetSlots[change.slot]) !== JSON.stringify(change.after)) return;
+    state.workoutUndo.pop();
+    state.presetSlots[change.slot] = change.before;
+    if (!persistSettings()) {
+      state.workoutUndo.push(change);
+      state.presetSlots[change.slot] = change.after;
+      showToast(I18n.t(state.locale, 'write_failed'), 'warn');
+      return;
+    }
+    workoutPage = Math.floor(change.slot / workoutsPerPage);
+    renderRoundsScreen();
+    applyDomFocus(els.presetsRow.querySelector('[data-preset-idx="' + change.slot + '"]'));
   }
 
   function onBackAction() {
@@ -656,6 +784,18 @@
       roundSection = 'presets';
       renderRoundsScreen();
       applyDomFocus(els.viewport.querySelector('[data-create-workout]'));
+      return;
+    }
+    if (state.screen === 'ACTIVE_TIMER' && ['ROUNDS','QUICK_TIMERS'].includes(sessionOrigin)) {
+      state.timer = TimerEngine.idle();
+      if (sessionOrigin === 'ROUNDS') openRounds(); else openQuickTimers();
+      pushTvStateToHub();
+      return;
+    }
+    if (state.screen === 'QUICK_TIMERS' && timeOptionsOpen) {
+      timeOptionsOpen = false;
+      renderQuickScreen();
+      applyDomFocus(els.viewport.querySelector('[data-time-options]'));
       return;
     }
     if (state.screen !== 'CLOCK') {
@@ -687,8 +827,7 @@
     els.wallDigits = document.getElementById('wall-digits');
 
     els.quickTitle = document.getElementById('quick-title');
-    els.stopwatchBtn = document.getElementById('btn-stopwatch');
-    els.quickGrid = document.getElementById('quick-grid');
+    els.timeStart = document.querySelector('[data-time-start]');
     els.quickOptions = document.getElementById('quick-options');
 
     els.presetsRow = document.getElementById('presets-row');
@@ -808,29 +947,71 @@
     els.screenSettings.classList.toggle('is-active', state.screen === 'SETTINGS');
   }
 
+  // Home remote wheel: the four D-pad directions and OK are direct shortcuts, drawn as one control shaped like the remote
+  // Line icons (24x24 grid) instead of emoji, so the wheel looks the same on every device
+  const gearPath = (() => {
+    const pts = [];
+    for (let i = 0; i < 16; i++) {
+      const a = (i * Math.PI) / 8 - Math.PI / 16;
+      const r = i % 2 === 0 ? 9.6 : 7.4;
+      pts.push((12 + r * Math.cos(a)).toFixed(2) + ' ' + (12 + r * Math.sin(a)).toFixed(2));
+    }
+    return 'M' + pts.join(' L') + ' Z';
+  })();
+  const ICON_BODY = {
+    quick: '<path d="M6.5 3h11M6.5 21h11M7.5 3v3.6c0 1.7 1.1 3 2.9 4.4l1.6 1.2-1.6 1.2c-1.8 1.4-2.9 2.7-2.9 4.4V21M16.5 3v3.6c0 1.7-1.1 3-2.9 4.4L12 12.2l1.6 1.2c1.8 1.4 2.9 2.7 2.9 4.4V21"/>',
+    trophy: '<path d="M8 3.5h8v5.2a4 4 0 0 1-8 0V3.5zM8 5.5H4.6a3 3 0 0 0 3.2 4.6M16 5.5h3.4a3 3 0 0 1-3.2 4.6M12 12.8v3.4M8.5 20.5h7M9.7 16.2h4.6l.6 4.3H9.1l.6-4.3z"/>',
+    gear: `<path d="${gearPath}"/><circle cx="12" cy="12" r="3.1"/>`,
+    rounds: '<path d="M1.8 8v8M5.4 5v14M18.6 5v14M22.2 8v8M5.4 12h13.2"/>',
+    watch: '<circle cx="12" cy="13.5" r="7.2"/><path d="M9.5 2.6h5M12 13.5V9.3M18.3 6.4l1.4 1.4"/>',
+  };
+  const iconSvg = (name, cls) => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_BODY[name]}</svg>`;
+  const HOME_WHEEL = [
+    { dir: 'up', angle: -90, icon: 'quick', label: 'nav_quick_timers', run: () => openQuickTimers() },
+    { dir: 'right', angle: 0, icon: 'trophy', label: 'nav_scoreboard', run: () => openScoreboard() },
+    { dir: 'down', angle: 90, icon: 'gear', label: 'nav_settings', run: () => openSettings() },
+    { dir: 'left', angle: 180, icon: 'rounds', label: 'nav_rounds', run: () => openRounds() },
+  ];
+
+  // Wheel = icons only; the legend underneath names what each direction (and OK) does
+  function homeWheelHtml() {
+    const t = (key) => escapeHtml(I18n.t(state.locale, key));
+    const OUTER = 106, INNER = 47, GAP = 3;
+    const pt = (deg, r) => `${(r * Math.cos((deg * Math.PI) / 180)).toFixed(2)} ${(r * Math.sin((deg * Math.PI) / 180)).toFixed(2)}`;
+    const wedges = HOME_WHEEL.map(({ dir, angle, icon }) => {
+      const a0 = angle - 45 + GAP, a1 = angle + 45 - GAP;
+      const tip = pt(angle, 102), baseL = pt(angle - 6.5, 89), baseR = pt(angle + 6.5, 89);
+      const [ix, iy] = pt(angle, 68).split(" ");
+      return `<path class="hw-wedge" data-wheel="${dir}" d="M ${pt(a0, OUTER)} A ${OUTER} ${OUTER} 0 0 1 ${pt(a1, OUTER)} L ${pt(a1, INNER)} A ${INNER} ${INNER} 0 0 0 ${pt(a0, INNER)} Z"/>` +
+        `<polygon class="hw-chevron" points="${tip} ${baseL} ${baseR}"/>` +
+        `<svg class="hw-icon" x="${(Number(ix) - 15).toFixed(2)}" y="${(Number(iy) - 15).toFixed(2)}" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICON_BODY[icon]}</svg>`;
+    }).join("");
+    const stopwatch = escapeHtml(I18n.t(state.locale, "quick_stopwatch_btn").replace(/\s*\(.*\)\s*$/, ""));
+    const ARROW = { up: "▲", right: "▶", down: "▼", left: "◀" };
+    const legend = HOME_WHEEL.map(({ dir, icon, label }) =>
+      `<button type="button" class="hw-key" data-wheel="${dir}"><i>${ARROW[dir]}</i>${iconSvg(icon, "hw-key__icon")}${t(label)}</button>`).join("") +
+      `<button type="button" class="hw-key tv-focusable" data-clock-watch data-wheel="ok"><i>OK</i>${iconSvg("watch", "hw-key__icon")}${stopwatch}</button>`;
+    const disc = `<div class="hw-disc"><svg viewBox="-110 -110 220 220" aria-hidden="true">${wedges}` +
+      `<circle class="hw-center" data-wheel="ok" r="40"/><svg class="hw-icon hw-icon--ok" x="-14" y="-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_BODY.watch}</svg><text class="hw-ok-text" y="14">OK</text></svg></div>`;
+    return { disc, legend };
+  }
+
   function renderClockScreen() {
-    const t = key => I18n.t(state.locale, key);
-    const first = state.presetSlots[0];
-    const actions = [
-      ['five', '5:00'], ['voice', t('nav_voice_short') + (state.soundPreferences.voiceEnabled ? ' ON' : ' OFF')], ['open_quick', t('nav_quick_timers')],
-      ['first', first.customName || t(first.titleKey)], ['watch', t('phase_stopwatch')], ['open_scoreboard', t('nav_scoreboard')],
-      ['intervals', '8 × 3:00 / 2:00'], ['repeat_last', t('quick_repeat_label')], ['save', t('save_ok')],
-    ];
-    setHtml(document.getElementById('home-actions'), actions.map(([id, label]) =>
-      `<button type="button" class="tv-focusable opt-pill" data-home="${id}">${escapeHtml(label)}</button>`).join(''));
+    setHtml(document.getElementById("home-wheel"), homeWheelHtml().disc);
+    document.getElementById('scan-hint').textContent = I18n.t(state.locale, 'scan_hint');
     els.wallEyebrow.textContent = I18n.t(state.locale, 'brand_tatami_mode');
     updateWallClocks();
   }
 
   function renderQuickScreen() {
     const L = state.locale;
-    els.quickTitle.textContent = I18n.t(L, 'quick_timers_title');
-    els.stopwatchBtn.textContent = `⏱ ${I18n.t(L, 'quick_stopwatch_btn')}`;
+    els.quickTitle.textContent = I18n.t(L, 'nav_quick_timers');
     const restLabel = state.quickRestSeconds === 0 ? I18n.t(L, 'quick_rest_none') : TimeFormatter.formatMmSs(state.quickRestSeconds);
     // Structure is static; only the two value labels + dim state change, updated in place (no rebuild => no flicker)
     setHtml(
       els.quickOptions,
-      `<div class="quick-opt" data-opt-group="rep">
+      `<button type="button" class="tv-focusable opt-pill" data-quick-endless>∞</button>
+      <div class="quick-opt" data-opt-group="rep">
         <span class="quick-opt__label">${I18n.t(L, 'quick_repeat_label')}</span>
         <button type="button" class="tv-focusable quick-opt__btn" data-quick-opt="rep-" aria-label="Repeat -">−</button>
         <span class="quick-opt__val" data-opt-val="rep"></span>
@@ -838,29 +1019,53 @@
       </div>
       <div class="quick-opt" data-opt-group="rest">
         <span class="quick-opt__label">${I18n.t(L, 'quick_rest_label')}</span>
+        <button type="button" class="tv-focusable mini-tag" data-quick-opt="rest-60">−1m</button>
         <button type="button" class="tv-focusable quick-opt__btn" data-quick-opt="rest-" aria-label="Rest -">−</button>
         <span class="quick-opt__val" data-opt-val="rest"></span>
         <button type="button" class="tv-focusable quick-opt__btn" data-quick-opt="rest+" aria-label="Rest +">+</button>
+        <button type="button" class="tv-focusable mini-tag" data-quick-opt="rest+60">+1m</button>
       </div>`
     );
+    const endlessBtn = els.quickOptions.querySelector('[data-quick-endless]');
+    endlessBtn.setAttribute('aria-pressed', String(state.quickEndless));
+    endlessBtn.classList.toggle('is-selected', state.quickEndless);
+    els.timeStart.querySelector('b').textContent = TimeFormatter.formatMmSs(quickSeconds);
+    document.getElementById('time-guide').textContent = I18n.t(L, 'time_guide');
+    setHtml(document.getElementById('time-steps'), [-1,30,60,180,300,600].map(seconds =>
+      `<button class="tv-focusable opt-pill" data-time-add="${seconds}">${seconds === -1 ? '−1 s' : seconds === 30 ? '+30 s' : '+' + seconds / 60 + ' min'}</button>`).join(''));
+    const toggle = document.querySelector('[data-time-options]');
+    const total = state.quickEndless ? '∞' : TimeFormatter.formatCompactDuration(quickSeconds * state.quickRepeat + (state.quickRepeat - 1) * state.quickRestSeconds);
+    toggle.textContent = I18n.t(L, 'role_rounds') + ' ×' + (state.quickEndless ? '∞' : state.quickRepeat) +
+      '   ·   ' + I18n.t(L, 'quick_rest_label') + ' ' + restLabel +
+      (state.quickRepeat > 1 || state.quickEndless ? '   ·   ' + I18n.t(L, 'total_prefix', {total}) : '') + (timeOptionsOpen ? '   ▴' : '   ▾');
+    toggle.setAttribute('aria-expanded', String(timeOptionsOpen));
+    els.quickOptions.hidden = !timeOptionsOpen;
     const repVal = els.quickOptions.querySelector('[data-opt-val="rep"]');
     const restVal = els.quickOptions.querySelector('[data-opt-val="rest"]');
-    if (repVal) repVal.textContent = `×${state.quickRepeat}`;
+    if (repVal) repVal.textContent = state.quickEndless ? "∞" : `×${state.quickRepeat}`;
     if (restVal) restVal.textContent = restLabel;
     const restGroup = els.quickOptions.querySelector('[data-opt-group="rest"]');
-    if (restGroup) restGroup.classList.toggle('is-dim', state.quickRepeat <= 1);
-    setHtml(els.quickGrid, Presets.quickTimers
-      .map((item, idx) => {
-        const focused = false;
-        return `
-          <button type="button"
-                  class="tv-focusable quick-btn${focused ? ' is-dpad-focused' : ''}"
-                  data-quick-idx="${idx}">
-            ${item.label}
-          </button>
-        `;
-      })
-      .join(''));
+    if (restGroup) restGroup.classList.toggle('is-dim', !state.quickEndless && state.quickRepeat <= 1);
+  }
+
+  function focusQuickRounds() {
+    timeOptionsOpen = true;
+    renderQuickScreen();
+    applyDomFocus(els.quickOptions.querySelector('[data-quick-opt="rep+"]'));
+  }
+
+  function startQuickSelection(single = false) {
+    if (quickSeconds === 0) return;
+    state.customBuilder = {
+      workSeconds: quickSeconds, restSeconds: state.quickRestSeconds, lastFiniteRepeat: state.quickRepeat,
+      repeat: single ? 1 : state.quickEndless ? -1 : state.quickRepeat
+    };
+    startSession(single ? {repeat: 0, workSeconds: quickSeconds, restSeconds: 0} : quickConfigFor(quickSeconds));
+  }
+
+  function setQuickSeconds(seconds) {
+    quickSeconds = Math.max(0, Math.min(3600, seconds));
+    renderQuickScreen();
   }
 
   function renderRoundsScreen() {
@@ -872,6 +1077,12 @@
         `<button type="button" class="tv-focusable round-section" data-round-section="${section}" aria-pressed="${(section === roundSection || (section === 'presets' && roundSection === 'create'))}">${I18n.t(L, 'round_section_' + section)}</button>`
       ).join(''));
     }
+    const undo = document.querySelector('[data-undo-workout]');
+    const lastWrite = state.workoutUndo[state.workoutUndo.length - 1];
+    undo.hidden = roundSection !== 'presets' || !lastWrite;
+    if (!undo.hidden) undo.textContent = I18n.t(L, 'undo_workout', {slot:lastWrite.slot+1});
+    document.querySelector('[data-create-workout]').title = I18n.t(L, 'hold_save');
+    document.getElementById('home-save-hint').textContent = roundSection === 'presets' ? I18n.t(L, 'hold_save') : '';
     document.querySelector('[data-create-workout]').textContent = I18n.t(L, 'create_workout');
     const pages = Math.ceil(state.presetSlots.length / workoutsPerPage);
     workoutPage = Math.max(0, Math.min(workoutPage, pages - 1));
@@ -882,6 +1093,7 @@
     const start = workoutPage * workoutsPerPage;
     setHtml(els.presetsRow, state.presetSlots.slice(start, start + workoutsPerPage)
       .map((p, position) => {
+        if (!p) return '<div aria-hidden="true"></div>';
         const idx = start + position;
         const focused = false;
         const repStr = p.repeat === -1 ? '∞' : p.repeat;
@@ -918,11 +1130,17 @@
       .join(''));
     updateSavePreview();
 
+    document.getElementById('field-edit-guide').hidden = roundSection !== 'create';
+    document.getElementById('field-edit-guide').textContent = I18n.t(L, 'field_edit_guide');
     const b = state.customBuilder;
     const isFoc = () => false;
     const isEndless = b.repeat === -1;
     const totalStr = isEndless ? '∞' : TimeFormatter.formatCompactDuration(CustomBuilder.totalSeconds(b));
     const unitForSec = (s) => I18n.t(L, s >= 3600 ? 'unit_hour' : s >= 60 ? 'unit_min' : 'unit_sec');
+
+    const fieldValue = (field, value) => roundSection === 'create'
+      ? `<span class="edit-controls"><button type="button" tabindex="-1" data-edit-pointer="${field}" data-dir="down" aria-label="−">−</button><button type="button" class="tv-focusable builder-col__num field-edit" data-edit-field="${field}">${value}</button><button type="button" tabindex="-1" data-edit-pointer="${field}" data-dir="up" aria-label="+">+</button></span>`
+      : `<span class="builder-col__num">${value}</span>`;
 
     els.builderRow.innerHTML = `
       <div class="builder-col">
@@ -932,7 +1150,7 @@
         </div>
         <div class="builder-col__mid">
           <span class="builder-col__unit">${I18n.t(L, isEndless ? 'unit_endless' : 'unit_rep')}</span>
-          <span class="builder-col__num">${isEndless ? '∞' : b.repeat}</span>
+          ${fieldValue('rounds', isEndless ? '∞' : b.repeat)}
         </div>
         <div class="stepper-pair">
           <button type="button" class="tv-focusable step-btn${isFoc(4) ? ' is-dpad-focused' : ''}" data-builder-idx="4" aria-label="Increase rounds">+</button>
@@ -951,7 +1169,7 @@
         </div>
         <div class="builder-col__mid">
           <span class="builder-col__unit">${unitForSec(b.workSeconds)}</span>
-          <span class="builder-col__num">${TimeFormatter.formatMmSs(b.workSeconds)}</span>
+          ${fieldValue('work', TimeFormatter.formatMmSs(b.workSeconds))}
         </div>
         <div class="stepper-pair">
           <button type="button" class="tv-focusable step-btn${isFoc(6) ? ' is-dpad-focused' : ''}" data-builder-idx="6" aria-label="Increase fight time">+</button>
@@ -970,7 +1188,7 @@
         </div>
         <div class="builder-col__mid">
           <span class="builder-col__unit">${unitForSec(b.restSeconds)}</span>
-          <span class="builder-col__num">${TimeFormatter.formatMmSs(b.restSeconds)}</span>
+          ${fieldValue('rest', TimeFormatter.formatMmSs(b.restSeconds))}
         </div>
         <div class="stepper-pair">
           <button type="button" class="tv-focusable step-btn${isFoc(8) ? ' is-dpad-focused' : ''}" data-builder-idx="8" aria-label="Increase rest time">+</button>
@@ -985,7 +1203,7 @@
         ${roundSection === 'create' ? `<button type="button" class="tv-focusable opt-pill" data-new-workout>${I18n.t(L, 'save_ok')}</button>
         <div class="save-slots-row">
           <span>${I18n.t(L, 'custom_save_slot_prefix')}</span>
-          ${state.presetSlots.map((_, i) => `<button type="button" class="tv-focusable mini-tag" data-save-slot="${i}">${i + 1}</button>`).join('')}
+          ${state.presetSlots.map((slot, i) => !slot ? '' : `<button type="button" class="tv-focusable mini-tag" data-save-slot="${i}">${i + 1}</button>`).join('')}
         </div>` : `<button type="button" class="tv-focusable opt-pill" data-custom-stopwatch>${I18n.t(L, 'phase_stopwatch')}</button>`}
       </div>
     `;
@@ -1069,6 +1287,7 @@
         <div class="fighter-card__main">
           <div class="fighter-points">${data.points}</div>
           <div class="fighter-btns">
+            ${lastScoreChange?.side === side ? `<button type="button" class="tv-focusable sb-btn" data-sb-cmd="undo">↶ ${I18n.t(L, 'undo_score')}</button>` : ''}
             <div class="fighter-btns__row">
               <button type="button" class="tv-focusable sb-btn" data-sb-act="${side}:points:2">+2</button>
               <button type="button" class="tv-focusable sb-btn" data-sb-act="${side}:points:3">+3</button>
@@ -1173,13 +1392,12 @@
     const left = [];
     const right = [];
 
-    if (state.screen === 'CLOCK') {
-      left.push({ id: 'open_rounds', label: I18n.t(L, 'nav_rounds'), kind: 'pill-primary' });
-
-      right.push({ id: 'open_settings', label: '⚙ ' + I18n.t(L, 'nav_settings'), kind: 'option' });
-    } else if (state.screen === 'ACTIVE_TIMER') {
+    if (state.screen === 'CLOCK') return {left, right, totalCount: 0};
+    if (state.screen === 'ACTIVE_TIMER') {
       left.push({ id: 'back_clock', label: '◀', kind: 'circle' });
-      if (state.timer.phase !== 'FINISHED') {
+      if (state.timer.phase === 'FINISHED') {
+        left.push({ id: 'next_round', kind: 'pill-primary', label: '←   ▶ ' + TimeFormatter.formatMmSs(nextRoundSeconds) + '   →' });
+      } else {
         const paused = state.timer.phase === 'PAUSED';
         left.push({ id: 'play_pause', label: paused ? '▶' : '⏸', kind: 'circle-prominent', paused });
         left.push({ id: 'restart_phase', label: '↺', kind: 'circle' });
@@ -1197,9 +1415,9 @@
       }
     }
 
-    if (state.screen === 'ROUNDS' || state.screen === 'SCOREBOARD') {
-      const on = state.soundPreferences.soundEnabled;
-      right.push({ id: 'toggle_sound', kind: 'sound', on, label: I18n.t(L, on ? 'sound_on' : 'sound_off') });
+    if (['ROUNDS', 'QUICK_TIMERS', 'SCOREBOARD'].includes(state.screen)) {
+      const on = state.soundPreferences.voiceEnabled;
+      right.push({ id: 'toggle_voice', kind: 'sound', on, label: I18n.t(L, on ? 'voice_on' : 'voice_off') });
     }
 
     return { left, right, totalCount: left.length + right.length };
@@ -1238,7 +1456,7 @@
       state.barFocusIndex = Math.max(0, model.totalCount - 1);
     }
 
-    let extraLeft = '';
+    let extraLeft = state.screen === 'CLOCK' ? '<div class="hw-legend">' + homeWheelHtml().legend + '</div>' : '';
     if (state.screen === 'SCOREBOARD') {
       const fullHref = `http://${state.lanUrl}`;
       const qrSvg = Qr ? Qr.toSvg(fullHref, 36) : '';
@@ -1263,7 +1481,7 @@
     setHtml(
       els.bottomRight,
       model.right.map((item, rIdx) => renderBarItem(item, model.left.length + rIdx)).join('') +
-        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.4.0</span>`
+        `<span class="version-tag"><strong>FEU BJJ</strong> · v1.4.G.5</span>`
     );
   }
 
@@ -1283,6 +1501,7 @@
   }
 
   function renderAll() {
+    if (window.FeuTv) pushTvStateToHub();
     updateAmbientTheme();
     renderTopChrome();
     renderScreensVisibility();
@@ -1302,9 +1521,11 @@
     else if (actionId === 'open_scoreboard') openScoreboard();
     else if (actionId === 'open_settings') openSettings();
     else if (actionId === 'download_update') {
+      if (window.FeuTv) { FeuTv.openUpdate(); return; }
       const localServer = tvWs?.readyState === WebSocket.OPEN && ['localhost', '127.0.0.1'].includes(location.hostname);
       location.assign(localServer ? '/update/web' : 'https://github.com/ryoken99/FeuTimer/releases/latest/download/FeuTimer-web.zip');
     }
+    else if (actionId === 'next_round') startSession({...state.lastSessionConfig, workSeconds: nextRoundSeconds});
     else if (actionId === 'repeat_last') startSession(state.lastSessionConfig);
     else if (actionId === 'back_clock') onBackAction();
     else if (actionId === 'play_pause') togglePlayPause();
@@ -1328,18 +1549,17 @@
         renderActiveTimer();
         updateAmbientTheme();
       }
-    } else if (actionId === 'toggle_sound') {
-      state.soundPreferences.soundEnabled = !state.soundPreferences.soundEnabled;
-      if (!state.soundPreferences.soundEnabled) Audio.stopAll();
+    } else if (actionId === 'toggle_voice') {
+      state.soundPreferences.voiceEnabled = !state.soundPreferences.voiceEnabled;
       persistSettings();
       renderBottomBar();
-      applyDomFocus(els.bottomRight.querySelector('[data-bar-action="toggle_sound"]'));
+      applyDomFocus(els.bottomRight.querySelector(`[data-bar-action="${actionId}"]`));
     }
   }
 
   function triggerRoundsBuilderAction(idx) {
     if (idx >= 0 && idx <= 3) {
-      startSession(state.presetSlots[idx]);
+      if (state.presetSlots[idx]) startSession(state.presetSlots[idx]);
       return;
     }
     if (idx === 4) state.customBuilder = CustomBuilder.adjustRepeat(state.customBuilder, true);
@@ -1375,7 +1595,7 @@
     });
   }
 
-  const GROUP_SELECTOR = '.quick-options, .builder-row, .presets-row, .templates-strip, .quick-grid, .set-line, .sb-header, .fighter-card, .quick-topbar, .bar-group';
+  const GROUP_SELECTOR = '.quick-options, .builder-row, .presets-row, .templates-strip, .time-steps, .set-line, .sb-header, .fighter-card, .quick-topbar, .bar-group';
 
   function groupIdsFor(nodes) {
     const seen = new Map();
@@ -1392,22 +1612,32 @@
       .filter((a) => a.name.startsWith('data-'))
       .map((a) => `${a.name}=${a.value}`)
       .join('|');
-    return `${attrs}#${(el.textContent || '').trim()}`;
+    return attrs || el.id || el.textContent.trim();
   }
 
   function defaultFocusTarget(list) {
     if (state.screen === 'ACTIVE_TIMER') {
-      const pp = list.find((n) => n.getAttribute('data-bar-action') === 'play_pause');
+      const pp = list.find((n) => ['play_pause','next_round'].includes(n.getAttribute('data-bar-action')));
       if (pp) return pp;
     }
-    if (state.screen === 'CLOCK') {
-      const first = list.find(n => n.dataset.home === 'watch');
+    const selector = {
+      CLOCK: '[data-clock-watch]', QUICK_TIMERS: '[data-time-start]',
+      SETTINGS: '[data-set-cmd="toggle-voice"]', SCOREBOARD: '[data-sb-cmd="playpause"]',
+      ROUNDS: '[data-preset-idx]',
+    }[state.screen];
+    if (selector) {
+      const first = list.find(n => n.matches(selector));
       if (first) return first;
     }
     return list[0] || null;
   }
 
   function applyDomFocus(target) {
+    if (state.screen === 'QUICK_TIMERS' && !clockMinuteScan) {
+      const guide = document.getElementById('time-guide');
+      const hint = I18n.t(state.locale, target?.matches('[data-time-add]:not([data-time-add="-1"])') ? 'add_start_hint' : target?.closest('[data-opt-group="rest"]') ? 'rest_start_hint' : 'time_guide');
+      if (guide.textContent !== hint) guide.textContent = hint;
+    }
     const current = Array.from(els.viewport.querySelectorAll('.is-dpad-focused'));
     if (target && current.length === 1 && current[0] === target) {
       focusSig = signatureOf(target);
@@ -1436,7 +1666,64 @@
     applyDomFocus(target);
   }
 
+  function editFieldDirection(field, dir, minute = false) {
+    const fields = ['rounds', 'work', 'rest'];
+    if (dir === 'left' || dir === 'right') {
+      const next = fields[fields.indexOf(field) + (dir === 'left' ? -1 : 1)];
+      const selector = next ? `[data-edit-field="${next}"]`
+        : dir === 'left' ? '[data-builder-cmd="toggle-endless"]' : '[data-builder-idx="10"]';
+      applyDomFocus(els.builderRow.querySelector(selector));
+      return;
+    }
+    const increase = dir === 'up';
+    const draft = state.customBuilder;
+    if (field === 'rounds') state.customBuilder = CustomBuilder.adjustRepeat(draft, increase);
+    if (field === 'work') state.customBuilder = minute ? CustomBuilder.adjustWork(draft, increase, 60) : CustomBuilder.adjustWorkSmart(draft, increase);
+    if (field === 'rest') state.customBuilder = minute ? CustomBuilder.adjustRest(draft, increase, 60) : CustomBuilder.adjustRestSmart(draft, increase);
+    persistSettings();
+    renderRoundsScreen();
+    applyDomFocus(els.builderRow.querySelector(`[data-edit-field="${field}"]`));
+  }
+
   function handleDpadDirection(dir) {
+    const field = els.builderRow.querySelector('[data-edit-field].is-dpad-focused');
+    if (field && state.screen === 'ROUNDS' && roundSection === 'create' && !isModalOpen()) {
+      editFieldDirection(field.dataset.editField, dir);
+      return;
+    }
+    document.body.classList.add('dpad-mode');
+    if (state.screen === 'CLOCK') {
+      ({up: openQuickTimers, down: openSettings, left: openRounds, right: openScoreboard})[dir]();
+      return;
+    }
+    if (state.screen === 'ACTIVE_TIMER' && state.timer.phase === 'FINISHED' &&
+        els.viewport.querySelector('[data-bar-action="next_round"].is-dpad-focused') && ['left','right'].includes(dir)) {
+      nextRoundSeconds = Math.max(1, Math.min(3600, nextRoundSeconds + (dir === 'right' ? 60 : -60)));
+      renderBottomBar();
+      applyDomFocus(els.viewport.querySelector('[data-bar-action="next_round"]'));
+      return;
+    }
+    if (state.screen === 'QUICK_TIMERS' && dir === 'down' && els.viewport.querySelector('[data-time-add].is-dpad-focused')) {
+      focusQuickRounds();
+      return;
+    }
+    if (state.screen === 'QUICK_TIMERS' && dir === 'right') {
+      const roundsStep = els.quickOptions.querySelector('[data-opt-group="rep"] .is-dpad-focused');
+      if (roundsStep?.dataset.quickOpt === 'rep+') {
+        applyDomFocus(els.quickOptions.querySelector('[data-quick-opt="rest+60"]'));
+        return;
+      }
+    }
+    if (state.screen === 'QUICK_TIMERS' && dir === 'up' && els.quickOptions.querySelector('.is-dpad-focused')) {
+      applyDomFocus(els.timeStart);
+      return;
+    }
+    if (state.screen === 'QUICK_TIMERS' && els.timeStart.classList.contains('is-dpad-focused')) {
+      if (dir === 'up' || dir === 'down') setQuickSeconds(quickSeconds + (dir === 'up' ? 1 : -1));
+      else if (dir === 'left') setQuickSeconds(quickSeconds === 60 ? 30 : quickSeconds - 60);
+      else setQuickSeconds(quickSeconds + 60);
+      return;
+    }
     Audio.unlock();
     document.body.classList.add('dpad-mode');
     const list = listFocusables();
@@ -1495,11 +1782,11 @@
     renderRemoteCompanion();
   }
 
+  function startStopwatch() {
+    startSession({ repeat: 0, workSeconds: 0, restSeconds: 0, isStopwatch: true });
+  }
+
   function wireEvents() {
-    els.stopwatchBtn.addEventListener('click', () => {
-      Audio.unlock();
-      startSession({ repeat: 0, workSeconds: 0, restSeconds: 0, isStopwatch: true });
-    });
 
     els.viewport.addEventListener('pointerdown', () => {
       document.body.classList.remove('dpad-mode');
@@ -1515,6 +1802,11 @@
     });
     els.viewport.addEventListener('click', (ev) => {
       Audio.unlock();
+      const pointer = ev.target.closest('[data-edit-pointer]');
+      if (pointer && !isModalOpen()) {
+        editFieldDirection(pointer.dataset.editPointer, pointer.dataset.dir);
+        return;
+      }
       const modalAct = ev.target.closest('[data-modal-act]');
       if (modalAct) {
         if (modalAct.getAttribute('data-modal-act') === 'ok') confirmSaveToSlot();
@@ -1529,22 +1821,10 @@
       if (clickedFocusable) applyDomFocus(clickedFocusable);
       if (ev.target.closest('.lan-banner')) return;
 
-      const home = ev.target.closest('[data-home]');
-      if (home) {
-        switch (home.dataset.home) {
-          case 'five': startSession({repeat: 0, workSeconds: 300, restSeconds: 0}); break;
-          case 'watch': els.stopwatchBtn.click(); break;
-          case 'first': startSession(state.presetSlots[0]); break;
-          case 'intervals': startSession({repeat: 8, workSeconds: 180, restSeconds: 120}); break;
-          case 'voice':
-            state.soundPreferences.voiceEnabled = !state.soundPreferences.voiceEnabled;
-            persistSettings(); renderClockScreen();
-            applyDomFocus(els.screenClock.querySelector('[data-home="voice"]')); break;
-          case 'save':
-            openRounds(); roundSection = 'create'; renderRoundsScreen();
-            applyDomFocus(els.builderRow.parentElement.querySelector('[data-save-slot="0"]')); break;
-          default: triggerBarAction(home.dataset.home);
-        }
+      const wheel = ev.target.closest('[data-wheel]');
+      if (wheel && state.screen === 'CLOCK') {
+        if (wheel.dataset.wheel === 'ok') startStopwatch();
+        else HOME_WHEEL.find(item => item.dir === wheel.dataset.wheel)?.run();
         return;
       }
 
@@ -1556,47 +1836,64 @@
         applyDomFocus(els.presetsRow.querySelector('.preset-card'));
         return;
       }
+      if (ev.target.closest('[data-undo-workout]')) { undoQuickSave(); return; }
       if (ev.target.closest('[data-create-workout]')) {
         roundSection = 'create';
         renderRoundsScreen();
-        applyDomFocus(els.builderRow.querySelector('[data-builder-idx="10"]'));
+        applyDomFocus(els.builderRow.querySelector('[data-edit-field="work"]'));
         return;
       }
-      if (ev.target.closest('[data-new-workout]')) {
-        openSaveDialog(state.presetSlots.length);
+      if (ev.target.closest('[data-new-workout], [data-edit-field]')) {
+        const empty = state.presetSlots.indexOf(null);
+        openSaveDialog(empty >= 0 ? empty : state.presetSlots.length);
         return;
       }
       if (ev.target.closest('[data-custom-stopwatch]')) {
-        els.stopwatchBtn.click();
+        startStopwatch();
         return;
       }
       const sectionButton = ev.target.closest('[data-round-section]');
       if (sectionButton) {
         roundSection = sectionButton.dataset.roundSection;
         renderRoundsScreen();
-        const first = els.viewport.querySelector('.rounds-wrap [data-' + ({ presets: 'preset-idx', builder: 'builder-cmd' }[roundSection]) + ']');
+        const first = els.presetsRow.querySelector('[data-preset-idx]');
         applyDomFocus(first);
         return;
       }
 
-      const quickOpt = ev.target.closest('[data-quick-opt]');
-      if (quickOpt) {
-        const k = quickOpt.getAttribute('data-quick-opt');
-        if (k === 'rep-') state.quickRepeat = Math.max(1, state.quickRepeat - 1);
-        else if (k === 'rep+') state.quickRepeat = Math.min(99, state.quickRepeat + 1);
-        else adjustQuickRest(k === 'rest+');
+      if (ev.target.closest('[data-time-start]')) {
+        startQuickSelection();
+        return;
+      }
+      const add = ev.target.closest('[data-time-add]');
+      if (add) {
+        const delta = Number(add.dataset.timeAdd);
+        setQuickSeconds(quickSeconds + delta);
+        applyDomFocus(delta === -1 ? add : els.timeStart);
+        return;
+      }
+      if (ev.target.closest('[data-time-options]')) {
+        timeOptionsOpen = !timeOptionsOpen;
+        renderQuickScreen();
+        if (timeOptionsOpen) applyDomFocus(els.quickOptions.querySelector('[data-quick-opt="rep+"]'));
+        return;
+      }
+      if (ev.target.closest('[data-quick-endless]')) {
+        state.quickEndless = !state.quickEndless;
         persistSettings();
         renderQuickScreen();
         return;
       }
-
-      const quickBtn = ev.target.closest('[data-quick-idx]');
-      if (quickBtn) {
-        const idx = Number(quickBtn.getAttribute('data-quick-idx'));
-        state.focusZone = 'CONTENT';
-        state.contentFocusIndex = idx;
-        const opt = Presets.quickTimers[idx];
-        if (opt) startSession(quickConfigFor(opt.seconds));
+      const quickOpt = ev.target.closest('[data-quick-opt]');
+      if (quickOpt) {
+        const k = quickOpt.getAttribute('data-quick-opt');
+        if (k.startsWith('rep')) state.quickEndless = false;
+        if (k === 'rest-60' || k === 'rest+60') state.quickRestSeconds = Math.max(0, Math.min(3600, state.quickRestSeconds + (k === 'rest+60' ? 60 : -60)));
+        else if (k === 'rep-') state.quickRepeat = Math.max(1, state.quickRepeat - 1);
+        else if (k === 'rep+') state.quickRepeat = Math.min(99, state.quickRepeat + 1);
+        else adjustQuickRest(k === 'rest+');
+        persistSettings();
+        renderQuickScreen();
         return;
       }
 
@@ -1617,6 +1914,7 @@
         else if (cmd === 'work-60') state.customBuilder = CustomBuilder.adjustWork(state.customBuilder, false, 60);
         else if (cmd === 'rest+60') state.customBuilder = CustomBuilder.adjustRest(state.customBuilder, true, 60);
         else if (cmd === 'rest-60') state.customBuilder = CustomBuilder.adjustRest(state.customBuilder, false, 60);
+        if (state.screen === 'QUICK_TIMERS') renderQuickScreen();
         persistSettings();
         renderRoundsScreen();
         return;
@@ -1634,6 +1932,7 @@
         state.focusZone = 'CONTENT';
         state.contentFocusIndex = idx;
         triggerRoundsBuilderAction(idx);
+        if (state.screen === 'QUICK_TIMERS') renderQuickScreen();
         return;
       }
 
@@ -1646,12 +1945,21 @@
       const sbCmd = ev.target.closest('[data-sb-cmd]');
       if (sbCmd) {
         const cmd = sbCmd.getAttribute('data-sb-cmd');
-        if (cmd === 'playpause') togglePlayPause();
+        if (cmd === 'undo' && lastScoreChange) {
+          const {side, field, before} = lastScoreChange;
+          state.scoreboard = Scoreboard.setExact(state.scoreboard, side, field, before);
+          lastScoreChange = null;
+          persistSettings();
+          renderScoreboardScreen();
+          applyDomFocus(els.scoreboardWrap.querySelector(`[data-sb-act="${side}:${field}:${field === 'points' ? 2 : 1}"]`));
+          pushTvStateToHub();
+        } else if (cmd === 'playpause') togglePlayPause();
         else if (cmd === 'minus10' || cmd === 'plus10') {
           state.timer = TimerEngine.adjustTime(state.timer, cmd === 'plus10' ? 10 : -10);
           renderScoreboardScreen();
           pushTvStateToHub();
         } else if (cmd === 'reset') {
+          lastScoreChange = null;
           state.scoreboard = Scoreboard.reset();
           persistSettings();
           selectScoreboardDuration(state.scoreboardDurationSeconds);
@@ -1661,7 +1969,7 @@
       const sbAct = ev.target.closest('[data-sb-act]');
       if (sbAct) {
         const [side, field, deltaStr] = sbAct.getAttribute('data-sb-act').split(':');
-        state.scoreboard = Scoreboard.adjust(state.scoreboard, side, field, Number(deltaStr));
+        changeScore(side, field, Number(deltaStr));
         persistSettings();
         renderScoreboardScreen();
         pushTvStateToHub();
@@ -1706,7 +2014,7 @@
         else if (cmd === 'toggle-10s') state.soundPreferences.beep10s = !state.soundPreferences.beep10s;
         else if (cmd === 'toggle-voice') state.soundPreferences.voiceEnabled = !state.soundPreferences.voiceEnabled;
         else if (cmd === 'toggle-24h') state.soundPreferences.use24HourClock = !state.soundPreferences.use24HourClock;
-        else if (cmd === 'reset-presets') state.presetSlots = Presets.roundPresets.map((p) => ({ ...p }));
+        else if (cmd === 'reset-presets') { state.workoutUndo = []; state.presetSlots = Presets.roundPresets.map((p) => ({ ...p })); }
         persistSettings();
         renderAll();
         return;
@@ -1721,10 +2029,274 @@
       }
     });
 
+    const timeShortcut = '[data-time-add]:not([data-time-add="-1"])';
+    const holdable = timeShortcut + ', [data-preset-idx], [data-time-start], [data-clock-watch]';
+    const repeatable = '[data-time-add="-1"], [data-quick-opt], [data-builder-idx]:not([data-builder-idx="10"]), [data-builder-cmd]:not([data-builder-cmd="toggle-endless"]), [data-sb-act], .sb-step-btn, .delta-pill';
+    function activateHeld(node) {
+      if (node.matches(timeShortcut)) {
+        node.click();
+        startQuickSelection();
+      } else if (node.hasAttribute('data-clock-watch')) repeatFromClock();
+      else if (node.hasAttribute('data-preset-idx')) openSaveDialog(Number(node.dataset.presetIdx));
+      else startQuickSelection(true);
+    }
+    // Tapping keeps spatial navigation. Holding horizontally visits every visible control in order.
+    let scanTimer;
+    let horizontalKey = null;
+    function stopScan() {
+      clearTimeout(scanTimer);
+    }
+    function armScan(dir) {
+      stopScan();
+      const screen = state.screen;
+      const modal = isModalOpen();
+      if (screen === 'CLOCK') return;
+      function step() {
+        if (screen !== state.screen || modal !== isModalOpen()) return;
+        const nodes = listFocusables();
+        if (!nodes.length) return;
+        const index = nodes.findIndex(n => n.classList.contains('is-dpad-focused'));
+        const delta = dir === 'left' ? -1 : 1;
+        document.body.classList.add('dpad-mode');
+        applyDomFocus(nodes[(index + delta + nodes.length) % nodes.length]);
+        scanTimer = setTimeout(step, 280);
+      }
+      scanTimer = setTimeout(step, 500);
+    }
+    window.addEventListener('blur', () => { stopScan(); horizontalKey = null; });
+    let adjustment = null;
+    let entry = null;
+    function finishEntry(cancel) {
+      if (!entry) return;
+      const pending = entry;
+      entry = null;
+      clearTimeout(pending.timer);
+      els.viewport.querySelectorAll('.entry-ready').forEach(node => node.classList.remove('entry-ready'));
+      if (!cancel && pending.ready && state.screen === pending.screen && !isModalOpen()) {
+        const node = listFocusables().find(el => el.matches(pending.selector) && el.classList.contains('is-dpad-focused'));
+        node?.click();
+      }
+    }
+    function enterArea(dir) {
+      handleDpadDirection(dir);
+      const selector = {up:'[data-time-start]',left:'[data-preset-idx]',down:'[data-set-cmd="toggle-voice"]',right:'[data-sb-cmd="playpause"]'}[dir];
+      armEntry(selector);
+    }
+    function armEntry(selector) {
+      const pending = {selector,screen:state.screen,ready:false};
+      entry = pending;
+      pending.timer = setTimeout(() => {
+        if (entry !== pending || pending.screen !== state.screen) return;
+        const node = listFocusables().find(el => el.matches(selector) && el.classList.contains('is-dpad-focused'));
+        if (node) { pending.ready = true; node.classList.add('entry-ready'); }
+      }, 330);
+    }
+    function finishAdjustment(cancel = false) {
+      finishEntry(cancel);
+      if (!adjustment) return;
+      const {dir, repeated, countedRounds, saveSlot, quickSaveReady} = adjustment;
+      stopScan();
+      adjustment = null;
+      if (saveSlot != null) {
+        els.presetsRow.querySelectorAll('.entry-ready').forEach(el => el.classList.remove('entry-ready'));
+        document.getElementById('home-save-hint').textContent = I18n.t(state.locale, 'hold_save');
+      }
+      if (!cancel && saveSlot != null && state.screen === 'ROUNDS' && roundSection === 'presets' && !isModalOpen()) {
+        if (dir === 'back' && quickSaveReady) quickSaveWorkout(saveSlot);
+        else openSaveDialog(saveSlot);
+        return;
+      }
+      if (!cancel && countedRounds && state.screen === 'QUICK_TIMERS' && !isModalOpen() &&
+          els.quickOptions.querySelector('[data-quick-opt="rep+"].is-dpad-focused')) {
+        applyDomFocus(els.quickOptions.querySelector('[data-quick-opt="rest+60"]'));
+      }
+      if (!cancel && (dir === 'up' || dir === 'down') && !repeated) handleDpadDirection(dir);
+    }
+    function scanSaveSlots(dir, firstSlot, immediate) {
+      adjustment = {dir, repeated:false};
+      let slot = firstSlot;
+      const selectSlot = () => {
+        if (!adjustment || state.screen !== 'ROUNDS' || roundSection !== 'presets' || isModalOpen()) return;
+        adjustment.repeated = true;
+        if (!state.presetSlots[slot]) slot = state.presetSlots.findIndex((item, idx) => idx > slot && item);
+        if (slot < 0) slot = state.presetSlots.findIndex(Boolean);
+        if (slot < 0) return;
+        adjustment.saveSlot = slot;
+        adjustment.quickSaveReady = false;
+        workoutPage = Math.floor(slot / workoutsPerPage);
+        renderRoundsScreen();
+        const target = els.presetsRow.querySelector('[data-preset-idx="' + slot + '"]');
+        if (target) {
+          applyDomFocus(target);
+          els.presetsRow.querySelectorAll('.entry-ready').forEach(el => el.classList.remove('entry-ready'));
+          const hint = document.getElementById('home-save-hint');
+          hint.textContent = I18n.t(state.locale, 'release_slot', {slot:slot+1});
+          const next = (slot+1) % state.presetSlots.length;
+          if (dir === 'back') {
+            scanTimer = setTimeout(() => {
+              if (!adjustment || isModalOpen() || !target.classList.contains('is-dpad-focused')) return;
+              adjustment.quickSaveReady = true;
+              target.classList.add('entry-ready');
+              const {repeat, workSeconds, restSeconds} = state.customBuilder;
+              hint.textContent = I18n.t(state.locale, 'release_save', {slot:slot+1}) + ' · ' +
+                (repeat === -1 ? '∞' : repeat) + ' × ' + TimeFormatter.formatMmSs(workSeconds) + ' / ' + TimeFormatter.formatMmSs(restSeconds);
+              slot = next;
+              scanTimer = setTimeout(selectSlot, 750);
+            }, 350);
+            return;
+          }
+          target.classList.add('entry-ready');
+          slot = next;
+        }
+        scanTimer = setTimeout(selectSlot, 550);
+      };
+      if (immediate) selectSlot();
+      else scanTimer = setTimeout(selectSlot, 480);
+    }
+    let homeBackHeld = false;
+    function beginHomeSave() {
+      if (homeBackHeld) return true;
+      if (state.screen !== 'CLOCK' || isModalOpen()) return false;
+      finishAdjustment(true);
+      homeBackHeld = true;
+      scanTimer = setTimeout(() => {
+        if (!homeBackHeld || state.screen !== 'CLOCK' || isModalOpen()) return;
+        openRounds();
+        scanSaveSlots('back', 0, true);
+      }, 500);
+      return true;
+    }
+    function endHomeSave(cancel) {
+      if (!homeBackHeld) return false;
+      homeBackHeld = false;
+      stopScan();
+      finishAdjustment(cancel);
+      return true;
+    }
+    window.addEventListener('blur', () => endHomeSave(true));
+    const backButton = document.querySelector('[data-dpad="back"]');
+    let swallowBack = false;
+    backButton.addEventListener('pointerdown', ev => {
+      swallowBack = beginHomeSave();
+      if (swallowBack) backButton.setPointerCapture(ev.pointerId);
+    });
+    backButton.addEventListener('pointerup', () => endHomeSave(false));
+    for (const name of ['pointercancel','lostpointercapture']) backButton.addEventListener(name, () => endHomeSave(true));
+    backButton.addEventListener('click', ev => {
+      if (swallowBack) { ev.stopImmediatePropagation(); swallowBack=false; }
+    }, true);
+    function startArrow(dir) {
+      finishAdjustment(true);
+      const card = els.presetsRow.querySelector('[data-preset-idx].is-dpad-focused');
+      if (dir === 'down' && state.screen === 'ROUNDS' && roundSection === 'presets' && card && !isModalOpen()) {
+        scanSaveSlots(dir, Number(card.dataset.presetIdx), false);
+        return;
+      }
+      const field = els.builderRow.querySelector('[data-edit-field].is-dpad-focused');
+      if (state.screen === 'ROUNDS' && roundSection === 'create' && field && !isModalOpen()) {
+        const name = field.dataset.editField;
+        if (name !== 'rounds' && (dir === 'up' || dir === 'down')) {
+          adjustment = {dir, repeated:false};
+          scanTimer = setTimeout(() => {
+            adjustment.repeated = true;
+            if (state.screen === 'ROUNDS' && roundSection === 'create' && !isModalOpen() && field.classList.contains('is-dpad-focused')) {
+              editFieldDirection(name, dir, true);
+            }
+          }, 450);
+        } else editFieldDirection(name, dir);
+        return;
+      }
+      if (state.screen === 'CLOCK') { enterArea(dir); return; }
+      if (dir === 'up' && state.screen === 'QUICK_TIMERS' &&
+          !isModalOpen() && els.quickOptions.querySelector('.is-dpad-focused')) {
+        handleDpadDirection(dir);
+        armEntry('[data-time-start]');
+        return;
+      }
+      if (state.screen === 'QUICK_TIMERS' && els.timeStart.classList.contains('is-dpad-focused')) {
+        adjustment = {dir, repeated:false};
+        const step = () => {
+          if (!adjustment || state.screen !== 'QUICK_TIMERS' || !els.timeStart.classList.contains('is-dpad-focused')) return;
+          adjustment.repeated = true;
+          if (dir === 'down') {
+            const shortcut = document.querySelector('[data-time-add="30"]');
+            applyDomFocus(shortcut);
+            scanTimer = setTimeout(() => {
+              if (!adjustment || state.screen !== 'QUICK_TIMERS' || isModalOpen() ||
+                  !shortcut.classList.contains('is-dpad-focused')) return;
+              focusQuickRounds();
+              const plus = els.quickOptions.querySelector('[data-quick-opt="rep+"]');
+              const count = () => {
+                if (!adjustment || state.screen !== 'QUICK_TIMERS' || isModalOpen() ||
+                    !plus.classList.contains('is-dpad-focused')) return;
+                adjustment.countedRounds = true;
+                plus.click();
+                if (state.quickRepeat < 99) scanTimer = setTimeout(count, 300);
+              };
+              count();
+            }, 450);
+            return;
+          }
+          if (dir === 'up' && quickSeconds < 3600) {
+            setQuickSeconds(quickSeconds + 1);
+          } else if (dir !== 'up') handleDpadDirection(dir);
+          scanTimer = setTimeout(step, 165);
+        };
+        if (dir === 'left' || dir === 'right') handleDpadDirection(dir);
+        scanTimer = setTimeout(step, 450);
+      } else {
+        if (dir === 'left' || dir === 'right') armScan(dir);
+        handleDpadDirection(dir);
+      }
+    }
+    window.addEventListener('blur', () => finishAdjustment(true));
+    for (const dir of ['left', 'right', 'up', 'down']) {
+      const arrow = document.querySelector(`[data-dpad="${dir}"]`);
+      let skipClick = false;
+      arrow.addEventListener('pointerdown', ev => {
+        skipClick = true;
+        arrow.setPointerCapture(ev.pointerId);
+        startArrow(dir);
+      });
+      arrow.addEventListener('pointerup', () => { finishAdjustment(); stopScan(); });
+      for (const event of ['pointercancel','lostpointercapture']) arrow.addEventListener(event, () => { finishAdjustment(true); stopScan(); });
+      arrow.addEventListener('click', ev => {
+        if (skipClick) { ev.stopImmediatePropagation(); skipClick = false; }
+      });
+    }
+    const okButton = document.querySelector('[data-dpad="ok"]');
+    let dockHoldStart = 0;
+    let dockRepeated = false;
+    let repeatTimer;
+    okButton.addEventListener('pointerdown', ev => {
+      dockHoldStart = performance.now();
+      dockRepeated = false;
+      okButton.setPointerCapture(ev.pointerId);
+      clearInterval(repeatTimer);
+      const selected = els.viewport.querySelector('.is-dpad-focused');
+      if (selected?.matches(repeatable)) {
+        const sig = signatureOf(selected);
+        repeatTimer = setInterval(() => {
+          const current = els.viewport.querySelector('.is-dpad-focused');
+          if (performance.now() - dockHoldStart >= 500 && current && signatureOf(current) === sig) {
+            current.click();
+            dockRepeated = true;
+          }
+        }, 200);
+      }
+    });
+    for (const event of ['pointerup','pointercancel','lostpointercapture']) okButton.addEventListener(event, () => clearInterval(repeatTimer));
+    window.addEventListener('blur', () => clearInterval(repeatTimer));
     document.querySelectorAll('[data-dpad]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const cmd = btn.getAttribute('data-dpad');
-        if (cmd === 'ok') handleDpadSelect();
+        if (cmd === 'ok') {
+          const current = els.viewport.querySelector('.is-dpad-focused');
+          if (dockHoldStart && performance.now() - dockHoldStart >= 500 && current?.matches(holdable)) activateHeld(current);
+          else if (!dockRepeated) handleDpadSelect();
+          dockHoldStart = 0;
+          dockRepeated = false;
+        }
         else if (cmd === 'back') onBackAction();
         else if (cmd === 'playpause') togglePlayPause();
         else handleDpadDirection(cmd);
@@ -1753,8 +2325,82 @@
       playCue('FIGHT_HORN');
     });
 
+    let restPlay = null;
+    function beginRestPlay() {
+      if (state.screen === 'CLOCK' && !isModalOpen()) {
+        const hold = restPlay = {fromClock:true, timer:null, picked:false};
+        let minutes = 1;
+        function nextMinute() {
+          if (restPlay !== hold || isModalOpen() || state.screen !== (hold.picked ? 'QUICK_TIMERS' : 'CLOCK')) return;
+          if (!hold.picked) openQuickTimers();
+          hold.picked = true;
+          clockMinuteScan = true;
+          setQuickSeconds(minutes * 60);
+          document.getElementById('time-guide').textContent = I18n.t(state.locale, 'pick_minutes');
+          if (minutes < 60) { minutes++; hold.timer = setTimeout(nextMinute, 400); }
+        }
+        hold.timer = setTimeout(nextMinute, 550);
+        return true;
+      }
+      const button = els.quickOptions.querySelector('[data-opt-group="rest"] .is-dpad-focused');
+      if (state.screen !== 'QUICK_TIMERS' || isModalOpen() || !button || (state.quickRepeat <= 1 && !state.quickEndless)) return false;
+      if (restPlay) return true;
+      const hold = restPlay = {button, timer:null};
+      function step() {
+        if (restPlay !== hold || state.screen !== 'QUICK_TIMERS' || isModalOpen() || !button.classList.contains('is-dpad-focused')) return;
+        button.click();
+        hold.timer = setTimeout(step, 480);
+      }
+      hold.timer = setTimeout(step, 450);
+      return true;
+    }
+    function finishRestPlay(cancel) {
+      if (!restPlay) return;
+      const {button, timer, fromClock, picked} = restPlay;
+      restPlay = null;
+      clearTimeout(timer);
+      if (fromClock) {
+        clockMinuteScan = false;
+        if (!cancel && !picked && state.screen === 'CLOCK') togglePlayPause();
+        if (picked && state.screen === 'QUICK_TIMERS') renderQuickScreen();
+        return;
+      }
+      if (!cancel && state.screen === 'QUICK_TIMERS' && !isModalOpen() && button.classList.contains('is-dpad-focused')) startQuickSelection();
+    }
+    const playButton = document.querySelector('[data-dpad="playpause"]');
+    let swallowPlay = false;
+    playButton.addEventListener('pointerdown', ev => {
+      swallowPlay = beginRestPlay();
+      if (swallowPlay) playButton.setPointerCapture(ev.pointerId);
+    });
+    playButton.addEventListener('pointerup', () => finishRestPlay(false));
+    playButton.addEventListener('click', ev => { if (swallowPlay) { ev.stopImmediatePropagation(); swallowPlay=false; } }, true);
+    for (const event of ['pointercancel','lostpointercapture']) playButton.addEventListener(event, () => finishRestPlay(true));
+    window.addEventListener('blur', () => finishRestPlay(true));
+    let heldTarget = null;
+    window.addEventListener('blur', () => { heldTarget = null; });
+    window.addEventListener('keyup', ev => {
+      if (['Escape','Backspace'].includes(ev.key) && endHomeSave(false)) {
+        ev.preventDefault();
+        if (window.FeuTv && state.screen === 'CLOCK') FeuTv.exitHome();
+        return;
+      }
+      if (restPlay && ['MediaPlayPause','p','P'].includes(ev.key)) { ev.preventDefault(); finishRestPlay(false); return; }
+      if (ev.key === horizontalKey) { horizontalKey = null; finishAdjustment(); stopScan(); }
+      if (!heldTarget || !['Enter', ' '].includes(ev.key)) return;
+      const {node, start} = heldTarget;
+      heldTarget = null;
+      if (!node.isConnected || !node.classList.contains('is-dpad-focused')) return;
+      ev.preventDefault();
+      if (performance.now() - start < 500) node.click();
+      else activateHeld(node);
+    });
     window.addEventListener('keydown', (ev) => {
       if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.isComposing) return;
+      if (ev.target.id !== 'slot-name' && ['Escape','Backspace'].includes(ev.key) && (homeBackHeld || (!ev.repeat && beginHomeSave()))) { ev.preventDefault(); return; }
+      if (homeBackHeld) endHomeSave(true);
+      if (ev.target.id !== 'slot-name' && ['MediaPlayPause','p','P'].includes(ev.key) && (restPlay || (!ev.repeat && beginRestPlay()))) { ev.preventDefault(); return; }
+      if (entry && !ev.key.startsWith('Arrow')) finishEntry(true);
       if (ev.target.id === 'slot-name') {
         if (ev.key === 'Enter' || ev.key === 'ArrowDown') {
           ev.preventDefault();
@@ -1763,11 +2409,27 @@
         } else if (ev.key === 'Escape') { ev.preventDefault(); closeModal(); }
         return;
       }
-      if (ev.key === 'ArrowUp') { ev.preventDefault(); handleDpadDirection('up'); }
-      else if (ev.key === 'ArrowDown') { ev.preventDefault(); handleDpadDirection('down'); }
-      else if (ev.key === 'ArrowLeft') { ev.preventDefault(); handleDpadDirection('left'); }
-      else if (ev.key === 'ArrowRight') { ev.preventDefault(); handleDpadDirection('right'); }
-      else if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); handleDpadSelect(); }
+      if (['Enter',' '].includes(ev.key)) {
+        const node = els.viewport.querySelector('.is-dpad-focused');
+        if (ev.repeat && !node?.matches(repeatable)) { ev.preventDefault(); return; }
+        if (node?.matches(holdable)) {
+          ev.preventDefault();
+          if (!ev.repeat) heldTarget = {node, start:performance.now()};
+          return;
+        }
+      }
+      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(ev.key)) {
+        ev.preventDefault();
+        const dir = ev.key.slice(5).toLowerCase();
+        if (!ev.repeat) {
+          horizontalKey = ev.key;
+          startArrow(dir);
+        } else if (ev.key === horizontalKey && !entry && !adjustment && (dir === 'up' || dir === 'down') && !els.timeStart.classList.contains('is-dpad-focused')) {
+          handleDpadDirection(dir);
+        }
+        return;
+      }
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); handleDpadSelect(); }
       else if (ev.key === 'Escape' || ev.key === 'Backspace') { ev.preventDefault(); onBackAction(); }
       else if (ev.key === 'p' || ev.key === 'P' || ev.key === 'MediaPlayPause') { ev.preventDefault(); togglePlayPause(); }
       else if (ev.key === 'f' || ev.key === 'F') { ev.preventDefault(); toggleTvOnlyMode(); }
@@ -1785,6 +2447,7 @@
 
   function init() {
     cacheElements();
+    if (window.FeuTv) document.body.classList.add("native-tv");
     setupViewportScaleLock();
     if (new URLSearchParams(window.location.search).get('tv') === '1') {
       document.body.classList.add('is-tv-only');

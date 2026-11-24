@@ -16,6 +16,7 @@ import pt.feubjj.timer.audio.SoundPlayerPort
 import pt.feubjj.timer.data.InMemoryTimerStorage
 import pt.feubjj.timer.domain.model.RoundConfig
 import pt.feubjj.timer.domain.model.TimerPhase
+import pt.feubjj.timer.ui.input.HomeShortcut
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeuTimerSessionControllerTest {
@@ -33,6 +34,48 @@ class FeuTimerSessionControllerTest {
         }
 
         override fun release() = Unit
+    }
+
+    @Test
+    fun `home remote wheel maps each direction and OK to its destination, only from the idle clock`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val controller = FeuTimerSessionController(InMemoryTimerStorage(), RecordingSoundPlayer(), backgroundScope, dispatcher)
+        val destinations = mapOf(
+            HomeShortcut.UP to TvScreen.QUICK_TIMERS,
+            HomeShortcut.LEFT to TvScreen.ROUNDS,
+            HomeShortcut.RIGHT to TvScreen.SCOREBOARD,
+            HomeShortcut.DOWN to TvScreen.SETTINGS,
+            HomeShortcut.OK to TvScreen.ACTIVE_TIMER
+        )
+        for ((shortcut, screen) in destinations) {
+            controller.runHomeShortcut(shortcut)
+            assertEquals(screen, controller.uiState.value.screen)
+            // Away from the clock the wheel is inert: arrows belong to that screen
+            controller.runHomeShortcut(HomeShortcut.DOWN)
+            assertEquals(screen, controller.uiState.value.screen)
+            controller.returnToClock()
+            assertEquals(TvScreen.CLOCK, controller.uiState.value.screen)
+        }
+        controller.runHomeShortcut(HomeShortcut.OK)
+        assertTrue(controller.uiState.value.timer.config?.isStopwatch == true)
+    }
+
+    @Test
+    fun `back returns to the launching screen even after pausing or repeating`() = runTest {
+        val storage = InMemoryTimerStorage()
+        val controller = FeuTimerSessionController(storage, RecordingSoundPlayer(), backgroundScope, StandardTestDispatcher(testScheduler))
+        controller.openRounds()
+        controller.startPresetRound(RoundConfig.single(300))
+        controller.pauseTimer()
+        controller.onBackPressed()
+        assertEquals(TvScreen.ROUNDS, controller.uiState.value.screen)
+        controller.openQuickTimers()
+        controller.repeatLastSession()
+        controller.onBackPressed()
+        assertEquals(TvScreen.QUICK_TIMERS, controller.uiState.value.screen)
+        assertEquals(TimerPhase.IDLE, controller.uiState.value.timer.phase)
+        controller.onBackPressed()
+        assertEquals(TvScreen.CLOCK, controller.uiState.value.screen)
     }
 
     @Test

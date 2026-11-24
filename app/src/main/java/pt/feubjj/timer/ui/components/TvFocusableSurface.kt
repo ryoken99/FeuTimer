@@ -21,6 +21,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -52,6 +55,8 @@ import pt.feubjj.timer.ui.theme.FeuColors
 @Composable
 fun TvFocusableSurface(
     onClick: () -> Unit,
+    onHold: (() -> Unit)? = null,
+    repeatOnHold: Boolean = false,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(16.dp),
     containerColor: Color = FeuColors.CardSurface,
@@ -66,14 +71,29 @@ fun TvFocusableSurface(
     pulseColor: Color = FeuColors.CrownGold,
     content: @Composable BoxScope.(isFocused: Boolean) -> Unit
 ) {
+    val latestHold by rememberUpdatedState(onHold)
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnFocusChange by rememberUpdatedState(onFocusChange)
-    val interactionSource = remember { MutableInteractionSource() }
-    val keyTracker = remember { SurfaceKeyPressTracker() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
 
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val keyTracker = remember { SurfaceKeyPressTracker() }
+    var holding by remember { mutableStateOf(false) }
+    var repeated by remember { mutableStateOf(false) }
+
+    LaunchedEffect(holding, isFocused) {
+        if (holding && isFocused) {
+            delay(android.view.ViewConfiguration.getLongPressTimeout().toLong())
+            while (holding) {
+                repeated = true
+                currentOnClick()
+                delay(200L)
+            }
+        }
+    }
     LaunchedEffect(isFocused) {
-        if (!isFocused) keyTracker.reset()
+        if (!isFocused) { keyTracker.reset(); holding = false }
         currentOnFocusChange?.invoke(isFocused)
     }
 
@@ -140,8 +160,14 @@ fun TvFocusableSurface(
             .onKeyEvent { event ->
                 val native = event.nativeKeyEvent
                 if (RemoteKeyClassifier.isConfirmKeyCode(native.keyCode)) {
-                    if (keyTracker.onKeyEvent(native.keyCode, native.action, native.repeatCount)) {
-                        currentOnClick()
+                    if (native.action == android.view.KeyEvent.ACTION_DOWN && native.repeatCount == 0) {
+                        repeated = false
+                        holding = repeatOnHold
+                    }
+                    if (native.action == android.view.KeyEvent.ACTION_UP) holding = false
+                    if (keyTracker.onKeyEvent(native.keyCode, native.action, native.repeatCount) && !repeated && !native.isCanceled) {
+                        if (onHold != null && native.eventTime - native.downTime >= android.view.ViewConfiguration.getLongPressTimeout()) onHold()
+                        else currentOnClick()
                     }
                     true
                 } else {
@@ -149,8 +175,8 @@ fun TvFocusableSurface(
                 }
             }
             .focusable(interactionSource = interactionSource)
-            .pointerInput(Unit) {
-                detectTapGestures { currentOnClick() }
+            .pointerInput(onHold != null) {
+                detectTapGestures(onLongPress = if (onHold != null) ({ _ -> latestHold?.invoke() }) else null) { currentOnClick() }
             }
             .semantics(mergeDescendants = true) {
                 role = Role.Button

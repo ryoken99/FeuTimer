@@ -25,6 +25,7 @@ import pt.feubjj.timer.domain.model.QuickTimerOptions
 import pt.feubjj.timer.domain.model.RoundConfig
 import pt.feubjj.timer.domain.model.SoundPreferences
 import pt.feubjj.timer.domain.model.TimerPhase
+import pt.feubjj.timer.ui.input.HomeShortcut
 import pt.feubjj.timer.domain.model.TimerSnapshot
 import pt.feubjj.timer.domain.presets.PresetCatalog
 import pt.feubjj.timer.domain.presets.RoundPresetOption
@@ -44,6 +45,7 @@ data class FeuTimerUiState(
     val matchScore: MatchScoreState = MatchScoreState(),
     val matchResults: List<MatchResultRecord> = emptyList(),
     val quickOptions: QuickTimerOptions = QuickTimerOptions(),
+    val quickSeconds: Long = quickOptions.durationSeconds,
     val scoreboardDurationSeconds: Long = 300L,
     val scoreboardArmed: Boolean = true,
     val localeOverride: String? = null,
@@ -79,7 +81,20 @@ class FeuTimerSessionController(
     )
     val uiState: StateFlow<FeuTimerUiState> = _uiState.asStateFlow()
 
+    private var sessionOrigin = TvScreen.CLOCK
     private var tickerJob: Job? = null
+
+    /** Home remote wheel: each D-pad direction (and OK) on the idle clock goes straight to one destination. */
+    fun runHomeShortcut(shortcut: HomeShortcut) {
+        if (_uiState.value.screen != TvScreen.CLOCK) return
+        when (shortcut) {
+            HomeShortcut.UP -> openQuickTimers()
+            HomeShortcut.LEFT -> openRounds()
+            HomeShortcut.RIGHT -> openScoreboard()
+            HomeShortcut.DOWN -> openSettings()
+            HomeShortcut.OK -> startStopwatch()
+        }
+    }
 
     fun openQuickTimers() {
         stopActiveTimerInternal()
@@ -125,7 +140,10 @@ class FeuTimerSessionController(
 
     fun onBackPressed(): Boolean {
         return if (_uiState.value.screen != TvScreen.CLOCK) {
-            returnToClock()
+            if (_uiState.value.screen == TvScreen.ACTIVE_TIMER) {
+                stopActiveTimerInternal()
+                _uiState.update { it.copy(screen = sessionOrigin, timer = TimerSnapshot(phase = TimerPhase.IDLE)) }
+            } else returnToClock()
             true
         } else {
             false
@@ -220,6 +238,41 @@ class FeuTimerSessionController(
     }
 
     // Starting Timers
+    fun toggleQuickEndless() = updateQuickOptions { it.copy(endless = !it.endless) }
+
+    fun adjustQuickRestMinute(increase: Boolean) = updateQuickOptions {
+        it.copy(restSeconds = (it.restSeconds + if (increase) 60L else -60L).coerceIn(0L, QuickTimerOptions.MAX_REST_SECONDS))
+    }
+
+    fun addQuickSeconds(delta: Long) {
+        _uiState.update { it.copy(quickSeconds = (it.quickSeconds + delta).coerceIn(0L, 3600L)) }
+    }
+
+    fun adjustQuickMinute(increase: Boolean) {
+        val seconds = _uiState.value.quickSeconds
+        val delta = if (increase) 60L else if (seconds == 60L) -30L else -60L
+        addQuickSeconds(delta)
+    }
+
+    fun advanceQuickSecond() {
+        _uiState.update {
+            val seconds = it.quickSeconds
+            if (seconds >= 3600L) it else it.copy(quickSeconds = seconds - seconds % 60L + (seconds + 1L) % 60L)
+        }
+    }
+
+    fun startQuickCustom(single: Boolean = false) {
+        val state = _uiState.value
+        if (state.quickSeconds == 0L) return
+        val options = state.quickOptions.copy(durationSeconds = state.quickSeconds)
+        val repeat = if (single) 1 else if (options.endless) RoundConfig.ENDLESS_ROUNDS else options.repeat
+        val draft = RoundConfig(repeat, state.quickSeconds, options.restSeconds)
+        storage.saveQuickOptions(options)
+        storage.saveCustomRound(draft)
+        _uiState.update { it.copy(quickOptions = options, customBuilder = CustomRoundBuilderState.fromRoundConfig(draft)) }
+        startRound(if (single) RoundConfig.single(state.quickSeconds) else options.toRoundConfig(state.quickSeconds))
+    }
+
     fun adjustQuickRepeat(increase: Boolean) = updateQuickOptions { it.adjustRepeat(increase) }
 
     fun adjustQuickRest(increase: Boolean) = updateQuickOptions { it.adjustRest(increase) }
@@ -255,6 +308,11 @@ class FeuTimerSessionController(
     }
 
     fun startRound(config: RoundConfig) {
+        sessionOrigin = when (_uiState.value.screen) {
+            TvScreen.ROUNDS -> TvScreen.ROUNDS
+            TvScreen.QUICK_TIMERS -> TvScreen.QUICK_TIMERS
+            else -> TvScreen.CLOCK
+        }
         tickerJob?.cancel()
         soundPlayer.stopAll()
         storage.saveLastSession(config)

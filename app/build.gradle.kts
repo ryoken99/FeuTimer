@@ -12,8 +12,8 @@ android {
         applicationId = "pt.feubjj.timer"
         minSdk = 23
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.4.0"
+        versionCode = 19
+        versionName = "1.4.G.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -64,6 +64,16 @@ android {
         }
     }
 }
+
+val tvAssets = tasks.register<Sync>("stageTvAssets") {
+    from(rootProject.file("web")) {
+        include("index.html", "assets/**", "css/**", "js/**")
+        into("timer")
+    }
+    into(layout.buildDirectory.dir("generated/tvAssets"))
+}
+android.sourceSets.getByName("main").assets.srcDir(tvAssets.map { it.destinationDir })
+tasks.named("preBuild").configure { dependsOn(tvAssets) }
 
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.10.01")

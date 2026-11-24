@@ -91,7 +91,7 @@ fun SettingsScreen(
                         label = if (sec == 0) stringResource(id = R.string.set_prep_off) else "${sec}s",
                         selected = preferences.prepSeconds == sec,
                         onClick = { onSetPrepSeconds(sec) },
-                        modifier = if (idx == 0) Modifier.focusRequester(firstFocus) else Modifier
+                        modifier = Modifier
                     )
                 }
             }
@@ -118,7 +118,8 @@ fun SettingsScreen(
                     label = stringResource(id = R.string.nav_voice_short) + ": " +
                         stringResource(id = if (preferences.voiceEnabled) R.string.feu_toggle_on else R.string.feu_toggle_off),
                     selected = preferences.voiceEnabled,
-                    onClick = onToggleVoice
+                    onClick = onToggleVoice,
+                    modifier = Modifier.focusRequester(firstFocus)
                 )
                 OptionPill(
                     label = stringResource(id = R.string.pack_horn),

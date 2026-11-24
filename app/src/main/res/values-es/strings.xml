@@ -12,6 +12,8 @@
     <string name="nav_back_clock">Reloj</string>
     <string name="nav_pause">Pausar</string>
     <string name="nav_resume">Reanudar</string>
+    <string name="voice_on">Voz activada</string>
+    <string name="voice_off">Voz desactivada</string>
     <string name="sound_on">Sonido activado</string>
     <string name="sound_off">Sonido desactivado</string>
     <string name="nav_voice_short">Voz</string>
@@ -99,4 +101,7 @@
     <string name="round_section_templates">Plantillas</string>
     <string name="create_workout">Crear entrenamiento</string>
     <string name="new_workout">Nuevo entrenamiento</string>
+    <string name="time_guide">← → minutos · Mantén ↑ para segundos · Mantén ↓ para rondas · OK para iniciar</string>
+    <string name="scan_hint">En los menús, mantén ← o → para recorrer los botones. Suelta y pulsa OK.</string>
+    <string name="hold_save">Mantén OK · Guardar</string>
 </resources>
